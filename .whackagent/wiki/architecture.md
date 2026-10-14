@@ -9,13 +9,14 @@ agent shell → berth claim/run/release/status/top (client, BerthCore.DaemonClie
             berth daemon run (BerthDaemon.Daemon)
               ├─ Server: SwiftNIO UDS, one task per connection
               ├─ Broker actor: slots, leases, FIFO waiters → [[broker]]
-              ├─ DeviceBackend → AndroidBackend (emulator/adb) → [[android-backend]]
+              ├─ DeviceBackend → DeviceRouter → AndroidBackend (emulator/adb) → [[android-backend]]
+              │                              └ IOSSimulatorBackend (simctl) → [[ios-backend]]
               └─ reap loop every 5 s
 ```
 
 ## Modules
-- `BerthCore` — shared by CLI, daemon, future GUI: `Model` (Slot, Lease, Owner, StateSnapshot), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config`, `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness).
-- `BerthDaemon` — `Broker`, `Server`, `Daemon` (lock, config, reap loop), `DeviceBackend` protocol, `AndroidBackend`, `StateStore`.
+- `BerthCore` — shared by CLI, daemon, future GUI: `Model` (Slot, Lease, Owner, StateSnapshot), `Platform` (android | ios), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config` (pool entry `avd` | `simulator`, `platform(of:)`, `models(for:)`), `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness).
+- `BerthDaemon` — `Broker`, `Server`, `Daemon` (lock, config, reap loop), `Backends/` (`DeviceBackend` protocol, `DeviceRouter`, `AndroidBackend`, `IOSSimulatorBackend`), `StateStore`.
 - `berth` — ArgumentParser commands + TUI → [[cli]].
 
 ## Key decisions
@@ -27,5 +28,5 @@ agent shell → berth claim/run/release/status/top (client, BerthCore.DaemonClie
 - Emulators spawned w/ `POSIX_SPAWN_CLOEXEC_DEFAULT` → no inherited daemon socket fds.
 
 ## Extending
-- iOS: implement `DeviceBackend` via `xcrun simctl` (clone/boot/erase). Broker platform-agnostic.
+- Platforms: one pool, queue, `maxRunning` for Android + iOS (eviction across platforms OK, same RAM). Broker knows platform only to filter claims. → [[ios-backend]]
 - GUI: SwiftUI `MenuBarExtra` app reusing `BerthCore` client + `watch` stream.

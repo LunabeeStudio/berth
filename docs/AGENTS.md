@@ -24,3 +24,25 @@ berth release "$SERIAL"                                          # always releas
 - A released emulator is wiped back to a clean snapshot; nothing you install survives.
 - Leases expire after 1 h (`berth renew "$SERIAL"` to extend) and are reclaimed when your session ends.
 - `berth status` shows who holds what and the waiting queue.
+
+## iOS simulators (berth)
+
+Simulators are shared with other agents running in parallel. Never boot, erase or shut down a simulator yourself; use only the one berth leases you.
+
+Preferred:
+
+```bash
+berth run --ios --label "<short task name>" --timeout 110 -- sh -c 'xcodebuild -scheme App -destination "id=$SIMULATOR_UDID" test'
+```
+
+For several steps on the same simulator:
+
+```bash
+UDID=$(berth claim --ios --label "<short task name>" --timeout 110)   # exit 2 = none free, retry
+xcrun simctl install "$UDID" App.app
+xcrun simctl launch "$UDID" com.example.app
+berth release "$UDID"                                                # always release
+```
+
+- A released simulator is erased; nothing you install survives.
+- `berth claim` without `--ios` still returns an Android emulator.

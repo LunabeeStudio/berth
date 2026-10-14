@@ -1,6 +1,6 @@
 ---
 issue: 2
-phase:
+phase: validated
 wiki: [[architecture]], [[broker]], [[cli]], [[ios-backend]] (new)
 note:
 created: 2026-10-14
@@ -44,8 +44,43 @@ Decisions (all taken unattended by autopilot; each one is tagged and listed in t
 
 ## Implementation
 
+Three bricks, one implementer (autopilot).
+
+1. Platform-aware pool + claims — `Platform` enum and `PoolEntry` (`avd` | `simulator` JSON keys, legacy configs unchanged) in `BerthCore/Config.swift`; `ClaimRequest.platform` (nil = android) in `BerthCore/Protocol.swift`; `Broker` filters claims, matches, candidate models and broken-model failures by platform. `DeviceBackend` + `AndroidBackend` moved to `BerthDaemon/Backends/`.
+2. iOS simulator backend — `Backends/IOSSimulatorBackend.swift`: provisions `berth-<simulator>-<k>` devices with `simctl create` at daemon start, touches only devices it owns, launch = erase + boot, ready = `bootstatus`, reset = shutdown + launch + wait, live = booted `berth-` devices. `Backends/DeviceRouter.swift` routes by model platform / serial shape, `liveSerials` nil when any configured platform fails. `DeviceBackend.unavailableReason(model:)` lets the broker fail claims fast for a simulator whose devices could not be created. Daemon runs `adb start-server` only when the pool has Android entries.
+3. CLI + docs — `--ios` / `--simulator` (usage error with `--avd`), `run` sets `SIMULATOR_UDID` for iOS, status DEVICE column (UDID truncated, full in `--json`), `prepare` rejects simulator entries; README + docs/AGENTS.md iOS sections.
+
+Fix found by the runtime check: `stop-all` during an in-flight reset left the device booted (pre-existing broker race, shared with Android). `Broker.discardOrphan` now shuts down a device whose boot or reset completes after its slot was stopped, never one a newer slot owns.
+
+Proof: `swift build` ✅ · `swift test` 39 tests ✅ (35 in BerthDaemonTests, 4 in the new BerthCoreTests target). New suites: ConfigTests, BrokerPlatformTests, BrokerUnavailableModelTests, BrokerStopRaceTests, IOSSimulatorBackendTests, DeviceRouterTests; shared fakes moved to `Tests/BerthDaemonTests/Support/`.
+
 ## Review
 
+### validation (autopilot) — 2026-10-14
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Four verifier passes, three autofix rounds. Final verdict: clean.
+
+- Round 1 (16 findings): 🟠 the docs recipe `berth run --ios -- xcodebuild … "id=$SIMULATOR_UDID"` expanded the variable in the caller's shell; now wrapped in `sh -c '…'`. 🟡 An orphan shutdown left its serial looking free, so it could be re-booted mid-shutdown; the serial is now held as a `.stopping` slot, and `launch` shuts the device down before `erase`. 🟡 `allBroken` now counts unavailable models. 🟡 iOS messages no longer say "AVD" or "adb". 🟡 `maxInstances: 0` no longer creates a device. 🟡 The default-platform rule, the pool-by-platform filter and the model-to-platform lookup each live once in BerthCore. 🟡 `simctl` property renamed `xcrun`, and every call goes through one helper. 🟡 `DeviceRouter` is a struct. 🟡 One type per file (`Platform`, `SimulatorDevice`), one suite per test file, `ConfigTests` moved to a new `BerthCoreTests` target.
+- Accepted, not fixed: type annotations on every declaration and file headers. The existing codebase uses neither, so new code matches the surrounding code.
+- Round 2 (6 findings): duplicate `truncate` removed (`pad` already cuts); `startShutdown` helper extracted so `discardOrphan` installs a `.stopping` slot directly; iOS `reset` = `launch` + `waitReady`; boot timeout throws `bootTimeout` again; test support split one type per file.
+- Round 3 (1 finding): `EventLog` moved to its own file.
+
+After each autofix round that touched the broker or the iOS backend, the implementer re-ran the runtime check on a real simulator: claim, release, run, and stop-all during a reset all passed.
+
 ## Verification
+
+Runtime check by agent (cli, real iOS 27 simulator, `BERTH_HOME=/tmp/bth2`, iOS-only pool, user's booted "iPhone 18 Pro" untouched, device list identical before/after):
+
+- ✅ Config with `{"simulator": "iPhone 17", "maxInstances": 2}` loads; legacy `avd` configs covered by ConfigTests.
+- ✅ Daemon start created `berth-iPhone 17-1` and `-2`; no other simulator changed state.
+- ✅ `claim --ios --json` → UDID of a Booted berth device (~20 s first boot).
+- ✅ Plain `claim` never got the iOS simulator ("the pool has no android entries…"); `--ios` never gets Android (BrokerPlatformTests).
+- ✅ `run --ios -- sh -c …` printed the UDID, `ANDROID_SERIAL` unset, exited with the command's status, released.
+- ✅ Marker file in the leased device's data dir gone after `release`; slot back to `free` (~24 s reset).
+- ✅ `status` shows DEVICE "iPhone 17" + truncated UDID; `status --json` full UDID.
+- ✅ `claim --simulator "Unknown device"` → not-in-pool error; `--avd X --ios` → usage error (exit 64).
+- ✅ Bogus device type → claim fails in 0.5 s with simctl's "Invalid device type".
+- ✅ `stop-all` shuts down only berth devices, including during an in-flight reset (after fix).
+- ✅ `swift build` + `swift test` green.
 
 ## Feedback

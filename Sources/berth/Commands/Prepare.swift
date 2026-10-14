@@ -19,6 +19,9 @@ struct Prepare: AsyncParsableCommand {
         let config = try await Config.loadOrCreate(discoverModels: AndroidBackend.listAVDs)
         let backend = AndroidBackend(config: config)
 
+        if config.entry(for: avd)?.platform == .ios {
+            throw ValidationError("'\(avd)' is an iOS simulator; berth erases simulators on release, so prepare is Android-only")
+        }
         guard await AndroidBackend.listAVDs(sdkRoot: config.resolvedSDKRoot).contains(avd) else {
             throw ValidationError("unknown AVD '\(avd)'")
         }

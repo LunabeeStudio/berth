@@ -7,9 +7,9 @@ struct StatusRenderer {
     let colors: Bool
 
     private static let slotColumns: [(String, Int)] = [
-        ("SERIAL", 15), ("AVD", 16), ("STATE", 10), ("OWNER", 18), ("LABEL", 20), ("HELD", 8), ("TTL", 7),
+        ("SERIAL", 15), ("DEVICE", 16), ("STATE", 10), ("OWNER", 18), ("LABEL", 20), ("HELD", 8), ("TTL", 7),
     ]
-    private static let queueColumns: [(String, Int)] = [("#", 3), ("OWNER", 18), ("LABEL", 20), ("AVD", 16), ("WAITING", 8)]
+    private static let queueColumns: [(String, Int)] = [("#", 3), ("OWNER", 18), ("LABEL", 20), ("DEVICE", 16), ("WAITING", 8)]
 
     func lines(selected: Int?) -> [String] {
         var lines = [

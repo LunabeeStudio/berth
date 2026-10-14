@@ -28,7 +28,8 @@ Optional: `berth daemon install` starts the daemon at login via launchd (otherwi
 | Command | |
 |---|---|
 | `berth run [--avd X] [--label L] -- <cmd…>` | claim, run `cmd` with `ANDROID_SERIAL` set, release |
-| `berth claim [--avd X] [--timeout 600] [--ttl 3600] [--label L] [--json]` | prints the serial; queues if none free; exit 2 on timeout |
+| `berth run --ios [--simulator "iPhone 17"] -- <cmd…>` | same for an iOS simulator: `SIMULATOR_UDID` is set instead |
+| `berth claim [--avd X] [--timeout 600] [--ttl 3600] [--label L] [--json]` | prints the serial (a UDID with `--ios` / `--simulator "<name>"`); queues if none free; exit 2 on timeout |
 | `berth release <serial\|lease>` | give it back (emulator is reset) |
 | `berth renew <serial\|lease> [--ttl s]` | extend a lease |
 | `berth status [--json]` / `berth top` | one-shot table / live TUI (`↑↓` select, `r` release, `x` stop, `q` quit) |
@@ -50,6 +51,12 @@ Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS
   process). The lease is reclaimed when that process exits, when the TTL expires, or when the claiming client
   disconnects before receiving its grant. A waiting claim leaves the queue when its client disconnects.
 - Emulators berth did not start are never handed out or touched.
+- **iOS simulators**: add `{"simulator": "iPhone 17", "maxInstances": 2}` to the pool (never added automatically).
+  At daemon start berth creates the missing `berth-<simulator>-<k>` devices with `xcrun simctl create` and only ever
+  boots, erases or shuts down devices named `berth-…`; your own simulators are never touched. Every lease starts from
+  `simctl erase` + a headless `simctl boot`, and a release does the same again. The serial is the device UDID:
+  `berth run --ios -- sh -c 'xcodebuild -destination "id=$SIMULATOR_UDID" test'`. Simulators share the queue and `maxRunning` with emulators;
+  `berth claim` without `--ios` never returns one, and `berth prepare` is Android-only.
 
 ## Config
 
@@ -63,7 +70,10 @@ Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS
   "defaultTTLSeconds": 3600,
   "bootTimeoutSeconds": 300,
   "snapshotName": "berth-clean",
-  "pool": [{ "avd": "Pixel_9", "maxInstances": 2 }]
+  "pool": [
+    { "avd": "Pixel_9", "maxInstances": 2 },
+    { "simulator": "iPhone 17", "maxInstances": 2 }
+  ]
 }
 ```
 
@@ -77,8 +87,7 @@ swift build && swift test       # broker logic is tested against a fake backend,
 ```
 
 Layout: `BerthCore` (model, wire protocol, client, process helpers), `BerthDaemon` (broker actor, NIO server,
-`DeviceBackend` + `AndroidBackend`), `berth` (CLI + TUI). An iOS simulator backend would implement `DeviceBackend`
-(`simctl clone/boot/erase`); a SwiftUI menu-bar app can reuse `BerthCore`'s client and `watch` stream.
+`DeviceBackend`, `AndroidBackend`, `IOSSimulatorBackend` over `simctl`, `DeviceRouter`), `berth` (CLI + TUI). A SwiftUI menu-bar app can reuse `BerthCore`'s client and `watch` stream.
 
 ## License
 

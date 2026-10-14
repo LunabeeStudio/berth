@@ -3,16 +3,20 @@ import NIOCore
 
 public struct ClaimRequest: Codable, Sendable {
     public var model: String?
+    public var platform: Platform?
     public var ttl: Int?
     public var label: String?
     public var owner: Owner
 
-    public init(model: String?, ttl: Int?, label: String?, owner: Owner) {
+    public init(model: String?, platform: Platform? = nil, ttl: Int?, label: String?, owner: Owner) {
         self.model = model
+        self.platform = platform
         self.ttl = ttl
         self.label = label
         self.owner = owner
     }
+
+    public var resolvedPlatform: Platform { platform ?? .android }
 }
 
 public enum Request: Codable, Sendable {

@@ -48,20 +48,30 @@ public actor Broker {
     // region Requests
 
     public func claim(_ request: ClaimRequest, conn: UUID, sink: AsyncStream<Event>.Continuation) {
-        let models = config.pool.map(\.avd)
+        let platform = request.resolvedPlatform
+        let models = config.models(for: platform)
         guard !models.isEmpty else {
-            sink.yield(.failure("the pool is empty: add AVDs to \(Paths.config.path) and run `berth daemon stop`"))
+            sink.yield(.failure("the pool has no \(platform) entries: add them to \(Paths.config.path) and run `berth daemon stop`"))
             return
         }
         if let model = request.model {
             guard models.contains(model) else {
-                sink.yield(.failure("AVD '\(model)' is not in the pool (\(models.joined(separator: ", ")))"))
+                sink.yield(.failure("\(platform.deviceKind) '\(model)' is not in the pool (\(models.joined(separator: ", ")))"))
+                return
+            }
+            if let reason = backend.unavailableReason(model: model) {
+                sink.yield(.failure("\(model) is unavailable: \(reason)"))
                 return
             }
             if isBroken(model) {
-                sink.yield(.failure("AVD '\(model)' failed to boot repeatedly; see \(Paths.logs.path)"))
+                sink.yield(.failure("\(platform.deviceKind) '\(model)' failed to boot repeatedly; see \(Paths.logs.path)"))
                 return
             }
+        }
+        let reasons = models.compactMap { backend.unavailableReason(model: $0) }
+        if request.model == nil, let reason = reasons.first, reasons.count == models.count {
+            sink.yield(.failure("no \(platform) device is available: \(reason)"))
+            return
         }
         waiters.append(Waiter(id: Self.shortID(), conn: conn, request: request, enqueuedAt: now(), sink: sink))
         schedule()
@@ -172,7 +182,7 @@ public actor Broker {
                 missedTicks[slot.serial] = misses
                 let processGone = slot.pid.map { !backend.isProcessAlive($0) } ?? false
                 if processGone || misses >= Self.missedTicksBeforeVanished {
-                    beginStop(slot.serial, reason: "vanished from adb")
+                    beginStop(slot.serial, reason: "vanished from the device list")
                 }
             }
         }
@@ -224,7 +234,7 @@ public actor Broker {
         }
     }
 
-    /// Each waiter takes one upcoming (booting/resetting) slot, else a new boot, else evicts an idle slot of another AVD.
+    /// Each waiter takes one upcoming (booting/resetting) slot, else a new boot, else evicts an idle slot of another model.
     private func provisionForWaiters() {
         var upcoming = slots.values.filter { $0.state == .booting || $0.state == .resetting }
         var pendingStops = slots.values.filter { $0.state == .stopping }.count
@@ -244,7 +254,7 @@ public actor Broker {
                 continue
             }
             if let victim = slots.values.filter({ $0.state == .free }).min(by: { $0.stateSince < $1.stateSince }) {
-                beginStop(victim.serial, reason: "evicted to boot a different AVD")
+                beginStop(victim.serial, reason: "evicted to boot a different model")
             }
         }
     }
@@ -263,12 +273,13 @@ public actor Broker {
     }
 
     private func matches(_ slot: Slot, _ request: ClaimRequest) -> Bool {
-        request.model == nil || request.model == slot.model
+        guard config.platform(of: slot.model) == request.resolvedPlatform else { return false }
+        return request.model == nil || request.model == slot.model
     }
 
     private func candidateModels(for request: ClaimRequest) -> [String] {
-        let models = request.model.map { [$0] } ?? config.pool.map(\.avd)
-        return models.filter { !isBroken($0) }
+        let models = request.model.map { [$0] } ?? config.models(for: request.resolvedPlatform)
+        return models.filter { !isBroken($0) && backend.unavailableReason(model: $0) == nil }
     }
 
     private func hasInstanceRoom(_ model: String) -> Bool {
@@ -320,9 +331,9 @@ public actor Broker {
                 let pid = try await backend.launch(serial: serial, model: model)
                 self.recordPID(pid, serial: serial, generation: generation)
                 try await backend.waitReady(serial: serial, pid: pid)
-                self.bootFinished(serial: serial, generation: generation, error: nil)
+                self.bootFinished(serial: serial, model: model, generation: generation, error: nil)
             } catch {
-                self.bootFinished(serial: serial, generation: generation, error: error)
+                self.bootFinished(serial: serial, model: model, generation: generation, error: error)
             }
         }
         return true
@@ -334,8 +345,11 @@ public actor Broker {
         changed()
     }
 
-    private func bootFinished(serial: String, generation: Int, error: Error?) {
-        guard let slot = slots[serial], slot.generation == generation, slot.state == .booting else { return }
+    private func bootFinished(serial: String, model: String, generation: Int, error: Error?) {
+        guard let slot = slots[serial], slot.generation == generation, slot.state == .booting else {
+            if error == nil { discardOrphan(serial: serial, model: model, generation: generation, pid: slots[serial]?.pid) }
+            return
+        }
         if let error {
             Log.info("\(serial): boot failed: \(error)")
             let failures = (bootFailures[slot.model] ?? 0) + 1
@@ -356,10 +370,12 @@ public actor Broker {
     private func markBroken(_ model: String) {
         bootFailures[model] = 0
         brokenUntil[model] = now().addingTimeInterval(Self.brokenCooldown)
-        let allBroken = config.pool.allSatisfy { isBroken($0.avd) }
+        let brokenPlatform = config.platform(of: model)
+        let allBroken = config.models(for: brokenPlatform).allSatisfy { isBroken($0) || backend.unavailableReason(model: $0) != nil }
         waiters.removeAll { waiter in
-            guard waiter.request.model == model || (waiter.request.model == nil && allBroken) else { return false }
-            waiter.sink.yield(.failure("AVD '\(model)' failed to boot \(Self.bootFailuresBeforeBroken) times; see \(Paths.logs.path)"))
+            let anyDevice = waiter.request.model == nil && waiter.request.resolvedPlatform == brokenPlatform
+            guard waiter.request.model == model || (anyDevice && allBroken) else { return false }
+            waiter.sink.yield(.failure("\(brokenPlatform.deviceKind) '\(model)' failed to boot \(Self.bootFailuresBeforeBroken) times; see \(Paths.logs.path)"))
             return true
         }
     }
@@ -374,16 +390,19 @@ public actor Broker {
         Task {
             do {
                 let pid = try await backend.reset(serial: serial, model: slot.model, pid: slot.pid)
-                self.resetFinished(serial: serial, generation: generation, pid: pid, error: nil)
+                self.resetFinished(serial: serial, model: slot.model, generation: generation, pid: pid, error: nil)
             } catch {
-                self.resetFinished(serial: serial, generation: generation, pid: nil, error: error)
+                self.resetFinished(serial: serial, model: slot.model, generation: generation, pid: nil, error: error)
             }
         }
         schedule()
     }
 
-    private func resetFinished(serial: String, generation: Int, pid: Int32?, error: Error?) {
-        guard slots[serial]?.generation == generation, slots[serial]?.state == .resetting else { return }
+    private func resetFinished(serial: String, model: String, generation: Int, pid: Int32?, error: Error?) {
+        guard slots[serial]?.generation == generation, slots[serial]?.state == .resetting else {
+            if error == nil { discardOrphan(serial: serial, model: model, generation: generation, pid: pid) }
+            return
+        }
         if let error {
             beginStop(serial, reason: "reset failed (\(error))")
             return
@@ -395,6 +414,25 @@ public actor Broker {
         schedule()
     }
 
+    /// A boot or reset finishing after its slot was stopped has brought the device back up; a newer slot owning the serial is left alone.
+    private func discardOrphan(serial: String, model: String, generation: Int, pid: Int32?) {
+        let current = slots[serial]
+        guard current == nil || (current?.generation == generation && current?.state == .stopping) else { return }
+        Log.info("\(serial): stopping (device came up after its slot was stopped)")
+        let generation = nextGeneration()
+        slots[serial] = Slot(serial: serial, model: model, pid: pid, state: .stopping, stateSince: now(), generation: generation)
+        startShutdown(serial: serial, generation: generation, pid: pid)
+        changed()
+    }
+
+    private func startShutdown(serial: String, generation: Int, pid: Int32?) {
+        let backend = backend
+        Task {
+            await backend.shutdown(serial: serial, pid: pid)
+            self.removeSlot(serial: serial, generation: generation)
+        }
+    }
+
     private func beginStop(_ serial: String, reason: String) {
         guard let slot = slots[serial], slot.state != .stopping else { return }
         Log.info("\(serial): stopping (\(reason))")
@@ -402,12 +440,7 @@ public actor Broker {
         slots[serial]?.stateSince = now()
         slots[serial]?.lease = nil
         missedTicks[serial] = nil
-        let backend = backend
-        let generation = slot.generation
-        Task {
-            await backend.shutdown(serial: serial, pid: slot.pid)
-            self.removeSlot(serial: serial, generation: generation)
-        }
+        startShutdown(serial: serial, generation: slot.generation, pid: slot.pid)
         changed()
     }
 
