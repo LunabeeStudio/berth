@@ -6,8 +6,8 @@ struct Top: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Live view of emulators, leases and the queue.")
 
     enum UIEvent: Sendable {
-        case snapshot(StateSnapshot)
-        case disconnected(String)
+        case watch(WatchUpdate)
+        case actionFailed(String)
         case key(Key)
         case tick
     }
@@ -19,19 +19,8 @@ struct Top: AsyncParsableCommand {
         let (events, sink) = AsyncStream.makeStream(of: UIEvent.self)
 
         let watcher = Task {
-            while !Task.isCancelled {
-                do {
-                    try await DaemonClient.withSession { session in
-                        try await session.send(.watch)
-                        while let event = try await session.next() {
-                            if case let .state(snapshot) = event { sink.yield(.snapshot(snapshot)) }
-                        }
-                    }
-                    sink.yield(.disconnected("daemon closed the connection"))
-                } catch {
-                    sink.yield(.disconnected("\(error)"))
-                }
-                try? await Task.sleep(for: .seconds(1))
+            for await update in DaemonWatch.updates(autoSpawn: true) {
+                sink.yield(.watch(update))
             }
         }
         let keyboard = Task {
@@ -65,10 +54,12 @@ struct Top: AsyncParsableCommand {
 
         loop: for await event in events {
             switch event {
-            case let .snapshot(next):
+            case let .watch(.snapshot(next)):
                 snapshot = next
                 problem = nil
-            case let .disconnected(reason):
+            case let .watch(.disconnected(reason)):
+                problem = reason
+            case let .actionFailed(reason):
                 problem = reason
             case .tick:
                 break
@@ -87,7 +78,7 @@ struct Top: AsyncParsableCommand {
                     let request: Request = key == .release ? .release(target: serial) : .stop(target: serial)
                     notice = key == .release ? "releasing \(serial)…" : "stopping \(serial)…"
                     Task {
-                        do { try await DaemonClient.call(request, autoSpawn: false) } catch { sink.yield(.disconnected("\(error)")) }
+                        do { try await DaemonClient.call(request, autoSpawn: false) } catch { sink.yield(.actionFailed("\(error)")) }
                     }
                 case .other:
                     break

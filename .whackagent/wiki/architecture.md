@@ -4,6 +4,7 @@ One binary `berth`, two roles: short-lived **client** commands + long-lived **da
 
 ```
 agent shell → berth claim/run/release/status/top (client, BerthCore.DaemonClient)
+berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
                  │ NDJSON over Unix socket  <BERTH_HOME>/berth.sock
                  ▼
             berth daemon run (BerthDaemon.Daemon)
@@ -15,7 +16,8 @@ agent shell → berth claim/run/release/status/top (client, BerthCore.DaemonClie
 ```
 
 ## Modules
-- `BerthCore` — shared by CLI, daemon, future GUI: `Model` (Slot, Lease, Owner, StateSnapshot), `Platform` (android | ios), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config` (pool entry `avd` | `simulator`, `platform(of:)`, `models(for:)`), `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness).
+- `BerthCore` — shared by CLI, daemon, bar: `Model` (Slot, Lease, Owner, StateSnapshot), `Platform` (android | ios), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config` (pool entry `avd` | `simulator`, `platform(of:)`, `models(for:)`), `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness), `Watch` (`DaemonWatch` reconnecting watch stream), `Format` (`DurationFormat`).
+- `BerthBar` — `berth-bar` AppKit `NSStatusItem` + `NSPopover` (SwiftUI panel) app, BerthCore only. `App/` entry, `Status/` model + state, `MenuBar/` status item + label, `Panel/` views. Read-only; `autoSpawn: false` (spawn would relaunch itself).
 - `BerthDaemon` — `Broker`, `Server`, `Daemon` (lock, config, reap loop), `Backends/` (`DeviceBackend` protocol, `DeviceRouter`, `AndroidBackend`, `IOSSimulatorBackend`), `StateStore`.
 - `berth` — ArgumentParser commands + TUI → [[cli]].
 
@@ -29,4 +31,4 @@ agent shell → berth claim/run/release/status/top (client, BerthCore.DaemonClie
 
 ## Extending
 - Platforms: one pool, queue, `maxRunning` for Android + iOS (eviction across platforms OK, same RAM). Broker knows platform only to filter claims. → [[ios-backend]]
-- GUI: SwiftUI `MenuBarExtra` app reusing `BerthCore` client + `watch` stream.
+- GUI: done → `BerthBar`.
