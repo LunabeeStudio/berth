@@ -1,0 +1,17 @@
+{
+  "description": "Blocks device commands that bypass a berth lease",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v berth >/dev/null 2>&1 || exit 0; berth guard",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

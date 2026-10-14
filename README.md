@@ -33,10 +33,25 @@ Optional: `berth daemon install` starts the daemon at login via launchd (otherwi
 | `berth release <serial\|lease>` | give it back (emulator is reset) |
 | `berth renew <serial\|lease> [--ttl s]` | extend a lease |
 | `berth status [--json]` / `berth top` | one-shot table / live TUI (`↑↓` select, `r` release, `x` stop, `q` quit) |
+| `berth guard` | Claude Code hook: blocks device commands outside a lease (reads the hook payload on stdin) |
 | `berth stop-all` | stop every emulator berth started |
 | `berth daemon stop` | stop the daemon (emulators keep running and are adopted on restart); needed after editing the config |
 
-Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS.md`.
+Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS.md` (Claude Code users: see below).
+
+## Claude Code
+
+With `berth` on your PATH (see Install), add the plugin:
+
+```
+/plugin marketplace add LunabeeStudio/berth
+/plugin install berth@berth
+```
+
+- Skill `berth`: the agent rules, loaded when a task needs a device.
+- Guard hook: `berth guard` runs before every Bash call and blocks `adb` without a serial, emulator and `simctl` lifecycle commands, `booted`, `xcodebuild` by simulator name, Gradle connected/install tasks without `ANDROID_SERIAL`, and `pkill` of emulators. It tells Claude which berth command to use instead.
+
+Without `berth` on PATH the hook does nothing. Disable the plugin in `/plugin` to opt out.
 
 ## Menu bar
 

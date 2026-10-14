@@ -1,7 +1,7 @@
 ---
 issue: 6
-phase:
-wiki: [[cli]], [[claude-code]] (new), [[index]]
+phase: validated
+wiki: [[cli]], [[claude-code]] (new), [[architecture]], [[index]]
 note:
 created: 2026-10-14
 ---
@@ -42,3 +42,34 @@ Decisions (all taken unattended by autopilot; each one is tagged and listed in t
 - `berth --help` lists `guard`.
 - README has a Claude Code section with the install commands; the skill body equals `docs/AGENTS.md` and a unit test fails when they differ.
 - `swift build` and `swift test` pass; unit tests cover the tokenizer (quotes, escapes, operators, `-c` scripts) and every allow/deny case above.
+
+## Implementation
+
+Two bricks, one implementer (autopilot).
+
+1. `berth guard` — `Sources/berth/Commands/Guard.swift` (stdin → `HookPayload.command(from:)` → `DeviceCommandGuard.verdict(for:)` → exit 0 / exit 2 + stderr). `Sources/berth/Guard/`: `ShellTokenizer` (private `Lexer`: quotes, escapes, operators, `#` comments, heredocs, arithmetic `((`), `ShellCommand`, `SimpleCommand` (assignments, keywords, `Wrapper` table), `DeviceCommandGuard` (berth segments allowed, `sh -c` / heredoc-to-shell recursion, exported `ANDROID_SERIAL`, injected rules), `GuardVerdict`, `HookPayload`. `Guard/Rules/`: `DeviceCommandRule` protocol + `AdbRule`, `EmulatorRule`, `SimctlRule`, `XcodebuildRule`, `GradleRule`, `ProcessKillRule`. New test target `berthTests`.
+2. Plugin + docs — `.claude-plugin/marketplace.json`, `claude-plugin/{.claude-plugin/plugin.json, hooks/hooks.json, skills/berth/SKILL.md}`; `PluginSyncTests` (skill body == docs/AGENTS.md, plugin + marketplace version == CLI version); README `## Claude Code` section + `guard` row.
+
+Beyond the spec's lists (from review): heredoc bodies not judged unless fed to a shell; `simctl list … booted` allowed; `for/if/while … do`, `xargs`, `sudo -u`, `nice -n`, `env -u`, `time -p`, `bash -lc`, `xcrun xcodebuild` all see through to the real command; `command -v X` allowed; `./gradlew installDist` and `--tests installerTest` allowed; `#` comments ignored; leading `|` never crashes.
+
+Proof: `swift build` ✅ · `swift test` ✅ (berthTests 35 tests / 6 suites, plus existing BerthCore, BerthBar, BerthDaemon suites).
+
+## Review
+
+### validation (autopilot) — 2026-10-14
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓ — 3 autofix rounds + final delta check → **clean**.
+- Round 1 (19): heredoc bodies judged as commands; `simctl list devices booted` denied; iOS hints used `$SIMULATOR_UDID` outside `sh -c` (expands empty); keywords/`xargs` hid the command word; wrapper option values; `command -v`; gradle option values + `installDist`; `bash -lc`; `xcrun xcodebuild`; comments; rule switch → `DeviceCommandRule` protocol + one struct per tool; payload decode split from guard; member order; mock/style nits; tokenizer flag-as-optional; force unwrap; manual dict merge; test helper bool flag. Wiki finding dropped (PM syncs at delivery).
+- Round 2 (9): arithmetic `<<` read as heredoc (fail-open bypass); heredoc fed to `sh` not inspected; `time -p` regression; member order; two suites in one file; `Data(...)`; 95-line tokenizer closure → `Lexer` struct; `Wrapper` value table; injected rules.
+- Round 3 (2): leading `|` crashed the guard (exit 133); `Lexer` nested in `private extension`.
+
+## Verification
+
+Runtime check (cli, agent):
+- ✅ every deny case in the acceptance criteria → `.build/debug/berth guard` exit 2, one `berth: …` stderr line with the berth alternative.
+- ✅ every allow case → exit 0, no output; non-Bash payload, malformed JSON, unbalanced quote → exit 0.
+- ✅ `ANDROID_SERIAL=emulator-5554` in the guard's environment → `adb install app.apk` exit 0.
+- ✅ `berth --help` lists `guard`.
+- ✅ `claude plugin validate .claude-plugin/marketplace.json` and `claude plugin validate claude-plugin` → "Validation passed".
+- ✅ e2e: `claude -p --model haiku --plugin-dir claude-plugin --allowedTools Bash` (debug binary first on PATH, scratch dir), asked to run `adb shell echo hi` → call blocked, reply quoted berth's reason (run twice, after brick 2 and after the last autofix).
+- ✅ skill listed as `berth:berth` in a `--plugin-dir` session.
+- Not run: real `/plugin marketplace add LunabeeStudio/berth` install from GitHub (needs the branch merged on the default branch).

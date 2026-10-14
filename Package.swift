@@ -30,6 +30,7 @@ let package = Package(
             ] + nio
         ),
         .executableTarget(name: "BerthBar", dependencies: ["BerthCore"]),
+        .testTarget(name: "berthTests", dependencies: ["berth"]),
         .testTarget(name: "BerthBarTests", dependencies: ["BerthBar", "BerthCore"]),
         .testTarget(name: "BerthCoreTests", dependencies: ["BerthCore"]),
         .testTarget(name: "BerthDaemonTests", dependencies: ["BerthDaemon", "BerthCore"]),

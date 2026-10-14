@@ -19,7 +19,7 @@ berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
 - `BerthCore` — shared by CLI, daemon, bar: `Model` (Slot, Lease, Owner, StateSnapshot), `Platform` (android | ios), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config` (pool entry `avd` | `simulator`, `platform(of:)`, `models(for:)`), `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness), `Watch` (`DaemonWatch` reconnecting watch stream), `Format` (`DurationFormat`).
 - `BerthBar` — `berth-bar` AppKit `NSStatusItem` + `NSPopover` (SwiftUI panel) app, BerthCore only. `App/` entry, `Status/` model + state, `MenuBar/` status item + label, `Panel/` views. Read-only; `autoSpawn: false` (spawn would relaunch itself).
 - `BerthDaemon` — `Broker`, `Server`, `Daemon` (lock, config, reap loop), `Backends/` (`DeviceBackend` protocol, `DeviceRouter`, `AndroidBackend`, `IOSSimulatorBackend`), `StateStore`.
-- `berth` — ArgumentParser commands + TUI → [[cli]].
+- `berth` — ArgumentParser commands + TUI → [[cli]]; `Guard/` shell tokenizer + device rules for `berth guard` → [[claude-code]].
 
 ## Key decisions
 - **Daemon auto-spawn**: no socket → client `posix_spawn`s `berth daemon run` w/ SETSID (outlives client, immune to terminal SIGHUP/SIGINT), retries connect 5 s. `flock` on `daemon.lock` → single daemon; loser exits 0.
