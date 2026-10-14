@@ -3,3 +3,6 @@
 *.xcodeproj
 DerivedData/
 .DS_Store
+
+.whackagent/reports/*
+!.whackagent/reports/.gitkeep
