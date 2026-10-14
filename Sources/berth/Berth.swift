@@ -6,7 +6,7 @@ import Foundation
 struct Berth: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "berth",
-        abstract: "Lease Android emulators to parallel AI agents without collisions.",
+        abstract: "Lease Android emulators and iOS simulators to parallel AI agents without collisions.",
         version: "0.1.0",
         subcommands: [
             Claim.self, Release.self, Renew.self, Run.self,
@@ -16,26 +16,39 @@ struct Berth: AsyncParsableCommand {
 }
 
 struct ClaimOptions: ParsableArguments {
-    @Option(help: "Only accept this AVD (default: any AVD in the pool).")
+    @Option(help: "Only accept this AVD (default: any Android emulator in the pool).")
     var avd: String?
+
+    @Flag(help: "Claim an iOS simulator instead of an Android emulator.")
+    var ios = false
+
+    @Option(help: "Only accept this simulator pool entry, e.g. \"iPhone 17\" (implies --ios).")
+    var simulator: String?
 
     @Option(help: "Lease duration in seconds before it is reclaimed (default from config).")
     var ttl: Int?
 
     @Option(help: "Free text shown in `berth top`, e.g. the task name.")
     var label: String?
+
+    var platform: Platform? { ios || simulator != nil ? .ios : nil }
+    var resolvedPlatform: Platform { platform ?? .android }
+
+    func validate() throws {
+        if avd != nil && platform == .ios { throw ValidationError("--avd cannot be combined with --ios or --simulator") }
+    }
 }
 
 enum ClaimFlow {
     static func claim(_ options: ClaimOptions, owner: Owner, timeout: Int) async throws -> Grant {
         try await DaemonClient.withSession { session in
-            try await session.send(.claim(ClaimRequest(model: options.avd, ttl: options.ttl, label: options.label, owner: owner)))
+            try await session.send(.claim(ClaimRequest(model: options.simulator ?? options.avd, platform: options.platform, ttl: options.ttl, label: options.label, owner: owner)))
             let watchdog = timeout > 0 ? session.closeAfter(.seconds(timeout)) : nil
             defer { watchdog?.cancel() }
             while let event = try await session.next() {
                 switch event {
                 case let .queued(position):
-                    printError("berth: waiting for an emulator (queue position \(position))")
+                    printError("berth: waiting for a device (queue position \(position))")
                 case let .granted(grant):
                     try await session.send(.ack(lease: grant.leaseID))
                     return grant

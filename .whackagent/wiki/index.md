@@ -4,10 +4,11 @@ Living knowledge base for project. Pages link to each other and to tasks via `[[
 
 ## Pages
 
-- [[architecture]] — client/daemon split, socket protocol, modules, key decisions
-- [[broker]] — slot lifecycle, FIFO scheduling, leases, reaping
 - [[android-backend]] — emulator boot, reset-by-restart, prepare, gotchas
+- [[architecture]] — client/daemon split, socket protocol, modules, key decisions
+- [[broker]] — slot lifecycle, FIFO scheduling, leases, reaping, platform filter
 - [[cli]] — commands, exit codes, owner detection, TUI
+- [[ios-backend]] — berth-owned simulators, erase+boot reset, routing
 
 ## How to read
 

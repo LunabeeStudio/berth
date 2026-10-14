@@ -24,9 +24,14 @@ public enum Daemon {
         signal(SIGPIPE, SIG_IGN)
 
         let config = try await Config.loadOrCreate(discoverModels: AndroidBackend.listAVDs)
-        let backend = AndroidBackend(config: config)
-        Log.info("daemon \(getpid()) starting: sdk=\(config.resolvedSDKRoot) pool=\(config.pool.map { "\($0.avd)x\($0.maxInstances)" }.joined(separator: ",")) maxRunning=\(config.maxRunning)")
-        _ = try? await Shell.run(backend.adb, ["start-server"], timeout: .seconds(30))
+        let android = AndroidBackend(config: config)
+        let simulators = IOSSimulatorBackend(config: config)
+        let backend = DeviceRouter(config: config, android: android, ios: simulators)
+        Log.info("daemon \(getpid()) starting: sdk=\(config.resolvedSDKRoot) pool=\(config.pool.map { "\($0.name)x\($0.maxInstances)" }.joined(separator: ",")) maxRunning=\(config.maxRunning)")
+        if !config.entries(for: .android).isEmpty {
+            _ = try? await Shell.run(android.adb, ["start-server"], timeout: .seconds(30))
+        }
+        await simulators.provision()
 
         let broker = Broker(config: config, backend: backend, store: StateStore(url: Paths.state))
         await broker.restore()

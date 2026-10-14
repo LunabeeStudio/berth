@@ -1,12 +1,40 @@
 import Foundation
 
 public struct PoolEntry: Codable, Sendable, Hashable {
-    public var avd: String
+    public var name: String
+    public var platform: Platform
     public var maxInstances: Int
 
-    public init(avd: String, maxInstances: Int) {
-        self.avd = avd
+    public init(name: String, platform: Platform = .android, maxInstances: Int) {
+        self.name = name
+        self.platform = platform
         self.maxInstances = maxInstances
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case avd
+        case simulator
+        case maxInstances
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        maxInstances = try c.decode(Int.self, forKey: .maxInstances)
+        if let avd = try c.decodeIfPresent(String.self, forKey: .avd) {
+            name = avd
+            platform = .android
+        } else if let simulator = try c.decodeIfPresent(String.self, forKey: .simulator) {
+            name = simulator
+            platform = .ios
+        } else {
+            throw DecodingError.keyNotFound(CodingKeys.avd, .init(codingPath: c.codingPath, debugDescription: "pool entry needs 'avd' or 'simulator'"))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: platform == .android ? .avd : .simulator)
+        try c.encode(maxInstances, forKey: .maxInstances)
     }
 }
 
@@ -58,8 +86,20 @@ public struct Config: Codable, Sendable {
         return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Android/sdk").path
     }
 
+    public func platform(of model: String) -> Platform {
+        entry(for: model)?.platform ?? .android
+    }
+
+    public func entries(for platform: Platform) -> [PoolEntry] {
+        pool.filter { $0.platform == platform }
+    }
+
+    public func models(for platform: Platform) -> [String] {
+        entries(for: platform).map(\.name)
+    }
+
     public func entry(for model: String) -> PoolEntry? {
-        pool.first { $0.avd == model }
+        pool.first { $0.name == model }
     }
 
     public static func loadOrCreate(discoverModels: (String) async -> [String]) async throws -> Config {
@@ -68,7 +108,7 @@ public struct Config: Codable, Sendable {
         }
         var config = Config()
         config.sdkRoot = config.resolvedSDKRoot
-        config.pool = await discoverModels(config.resolvedSDKRoot).map { PoolEntry(avd: $0, maxInstances: 2) }
+        config.pool = await discoverModels(config.resolvedSDKRoot).map { PoolEntry(name: $0, maxInstances: 2) }
         try Paths.ensureDirectories()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

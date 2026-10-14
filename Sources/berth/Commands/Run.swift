@@ -4,13 +4,13 @@ import Foundation
 
 struct Run: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Claim an emulator, run a command with ANDROID_SERIAL set, then release it.",
+        abstract: "Claim a device, run a command with ANDROID_SERIAL (or SIMULATOR_UDID for iOS) set, then release it.",
         discussion: "Example: berth run --label login-tests -- ./gradlew connectedDebugAndroidTest"
     )
 
     @OptionGroup var options: ClaimOptions
 
-    @Option(help: "Seconds to wait for an emulator, 0 = forever.")
+    @Option(help: "Seconds to wait for a device, 0 = forever.")
     var timeout: Int = 0
 
     @Argument(parsing: .postTerminator, help: "Command to run, after `--`.")
@@ -29,17 +29,17 @@ struct Run: AsyncParsableCommand {
         guard let grant else { throw ExitCode.failure }
         printError("berth: running on \(grant.serial)")
 
-        let status = await execute(command, serial: grant.serial)
+        let status = await execute(command, grant: grant, platform: options.resolvedPlatform)
         _ = try? await DaemonClient.call(.release(target: grant.leaseID), autoSpawn: false)
         throw ExitCode(status)
     }
 
-    private func execute(_ command: [String], serial: String) async -> Int32 {
+    private func execute(_ command: [String], grant: Grant, platform: Platform) async -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = command
         var environment = ProcessInfo.processInfo.environment
-        environment["ANDROID_SERIAL"] = serial
+        environment[platform == .ios ? "SIMULATOR_UDID" : "ANDROID_SERIAL"] = grant.serial
         process.environment = environment
 
         let (exits, continuation) = AsyncStream.makeStream(of: Int32.self)
