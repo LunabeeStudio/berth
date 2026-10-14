@@ -1,6 +1,6 @@
 ---
 issue: 1
-phase:
+phase: validated
 wiki: [[architecture]], [[cli]]
 note:
 created: 2026-10-14
@@ -38,8 +38,53 @@ Prior art: `MenuBarExtra` (SwiftUI, macOS 13+) is the native API for a menu bar 
 
 ## Implementation
 
+Brick 1 — shared code in `BerthCore`, no behavior change:
+- `Watch/DaemonWatch.swift`, `Watch/WatchUpdate.swift`: `DaemonWatch.updates(autoSpawn:)` is the reconnecting watch stream (1 s retry, cancelled on stream termination). `berth top` consumes it.
+- `Format/DurationFormat.swift`: `clock` and `remaining`, moved from `StatusRenderer`.
+- `Tests/BerthCoreTests/Format/DurationFormatTests.swift` (new test target `BerthCoreTests`).
+
+Brick 2 — `berth-bar` (`Sources/BerthBar`, depends on `BerthCore` only):
+- `App/BerthBarApp.swift`: `MenuBarExtra` in `.window` style, `.accessory` activation policy.
+- `Status/StatusModel.swift`: `@Observable @MainActor`, `DaemonWatch.updates(autoSpawn: false)` plus a 1 s tick.
+- `Status/MenuBarLabel.swift` (label text logic), `MenuBarLabelView.swift` (`iphone` / `iphone.slash` symbol), `StatusPanel.swift`, `EmulatorRow.swift`, `QueueRow.swift`, `SlotState+Color.swift`.
+- `Tests/BerthBarTests/Status/MenuBarLabelTests.swift`.
+- README "Menu bar" section; wiki `architecture` page lists `BerthBar`, `Watch`, `Format`.
+
+Build: `swift build` green. Tests: `swift test` 27 passed (16 broker, 6 duration format, 5 menu bar label).
+
 ## Review
 
+### validation (autopilot) — 2026-10-14
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean after 3 rounds.
+
+Round 1 found 7 issues, all fixed by autofix:
+- major, correctness: the emulator row overflowed the panel, so the held time and TTL were truncated. The panel is now 620 pt wide and those two columns have fixed widths.
+- minor, elegance: the connection state was held in two linked optionals. It is now one `StatusState` enum (`connecting` / `live` / `disconnected`), and the panel shows "connecting…" before the first snapshot.
+- minor, structure: the header line was duplicated with `berth status`. It is now a shared `StateSnapshot.summary` in BerthCore.
+- minor, elegance: `berth top` re-mapped `WatchUpdate` into its own cases. It now uses `UIEvent.watch(WatchUpdate)`.
+- minor, structure: the `Status/` folder was flat. It is now split into `MenuBar/`, `Panel/` and `Status/`, and the tests mirror that.
+- minor, style: `DaemonWatch` lacked explicit types. They are added.
+- minor, style: the test helpers were out of member order and built models inline. Tests now use internal `mock(...)` helpers in `Model.swift`.
+
+Round 2 found 2 issues, both fixed:
+- minor, elegance: a failed release or stop in `berth top` was reported as a watch disconnection. It now has its own `actionFailed` event.
+- minor, style: the mock defaults repeated the type name. They now use `.init(...)`.
+
+Round 3: clean.
+
 ## Verification
+
+Runtime check by agent, `BERTH_HOME=/tmp/bb1`, pool `Emu_2` only:
+- ✅ `swift build` produces `berth-bar`; `swift test` passes.
+- ✅ Daemon down: `berth-bar` stays alive, creates no socket and starts no `berth daemon run`; label shows the slashed symbol without a count.
+- ✅ Menu bar item present (System Events lists a status menu for `berth-bar`; screenshots).
+- ✅ Daemon started afterwards: label switches to `0/0` within 3 s (reconnect).
+- ✅ Leased emulator (`berth run --avd Emu_2 --label demo -- sleep 120`) plus queued claim: label `1/1 +1`; `berth status` shows `emulator-5556 Emu_2 leased demo` and queue #1.
+- ✅ `berth status` text output byte-identical to `main`; `--json` identical except `generatedAt`.
+- ❌ Not seen: panel content (rows, "none running" / "empty", "daemon not running"). Automation could not open the `MenuBarExtra` window (click and `AXPress` returned success, no window).
+- ❌ Not run: Quit button (inside the panel).
+- ❌ Not checked: no Dock icon (relies on `.accessory`).
+- After autofix: the agent relaunched the app; the disconnected label (slashed symbol) and reconnect to `0/0` were seen again, and `berth status` was again byte-identical to `main`. The panel still could not be opened by automation.
 
 ## Feedback

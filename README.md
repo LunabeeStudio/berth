@@ -38,6 +38,17 @@ Optional: `berth daemon install` starts the daemon at login via launchd (otherwi
 
 Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS.md`.
 
+## Menu bar
+
+`berth-bar` is a read-only menu bar item showing what is running: label `<leased>/<running>` (plus `+N` when claims wait), panel with emulators and the queue.
+
+```bash
+swift build -c release
+.build/release/berth-bar &                  # no Dock icon; Quit is in the panel
+```
+
+It never starts the daemon: while the daemon is down the panel says so, and it reconnects on its own once the daemon runs.
+
 ## How it behaves
 
 - **Boot**: `emulator -avd X -read-only -no-window -snapshot berth-clean -no-snapshot-save` on the next free even port;

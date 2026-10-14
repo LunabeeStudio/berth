@@ -109,3 +109,60 @@ extension String {
         compare(other, options: .numeric) == .orderedAscending
     }
 }
+
+extension Owner {
+    static func mock(pid: Int32 = 1, startTime: Double? = nil, name: String = "test") -> Owner {
+        .init(pid: pid, startTime: startTime, name: name)
+    }
+}
+
+extension Lease {
+    static func mock(
+        id: String = "lease-1",
+        owner: Owner = .mock(),
+        label: String? = nil,
+        grantedAt: Date = .init(timeIntervalSince1970: 0),
+        expiresAt: Date = .init(timeIntervalSince1970: 3600),
+        acknowledged: Bool = true
+    ) -> Lease {
+        .init(id: id, owner: owner, label: label, grantedAt: grantedAt, expiresAt: expiresAt, acknowledged: acknowledged)
+    }
+}
+
+extension Slot {
+    static func mock(
+        serial: String = "emulator-5554",
+        model: String = "Emu",
+        pid: Int32? = nil,
+        state: SlotState = .free,
+        stateSince: Date = .init(timeIntervalSince1970: 0),
+        lease: Lease? = nil,
+        generation: Int = 1
+    ) -> Slot {
+        .init(serial: serial, model: model, pid: pid, state: state, stateSince: stateSince, lease: lease, generation: generation)
+    }
+}
+
+extension WaiterInfo {
+    static func mock(
+        id: String = "waiter-1",
+        owner: Owner = .mock(),
+        label: String? = nil,
+        model: String? = nil,
+        enqueuedAt: Date = .init(timeIntervalSince1970: 0)
+    ) -> WaiterInfo {
+        .init(id: id, owner: owner, label: label, model: model, enqueuedAt: enqueuedAt)
+    }
+}
+
+extension StateSnapshot {
+    static func mock(
+        slots: [Slot] = [],
+        queue: [WaiterInfo] = [],
+        maxRunning: Int = 3,
+        pool: [PoolEntry] = [],
+        generatedAt: Date = .init(timeIntervalSince1970: 0)
+    ) -> StateSnapshot {
+        .init(slots: slots, queue: queue, maxRunning: maxRunning, pool: pool, generatedAt: generatedAt)
+    }
+}

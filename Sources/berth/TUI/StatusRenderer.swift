@@ -13,7 +13,7 @@ struct StatusRenderer {
 
     func lines(selected: Int?) -> [String] {
         var lines = [
-            style("berth", "1") + "  \(snapshot.slots.count)/\(snapshot.maxRunning) running · \(snapshot.queue.count) waiting",
+            style("berth", "1") + "  \(snapshot.summary)",
             "",
             style("EMULATORS", "1"),
             "  " + style(row(Self.slotColumns.map { ($0.0, $0.1) }), "2"),
@@ -30,7 +30,7 @@ struct StatusRenderer {
                 waiter.owner.display,
                 waiter.label ?? "—",
                 waiter.model ?? "any",
-                Self.clock(now.timeIntervalSince(waiter.enqueuedAt)),
+                DurationFormat.clock(now.timeIntervalSince(waiter.enqueuedAt)),
             ]
             lines.append("  " + row(zip(cells, Self.queueColumns.map(\.1)).map { ($0, $1) }))
         }
@@ -45,8 +45,8 @@ struct StatusRenderer {
             slot.state.rawValue,
             lease?.owner.display ?? "—",
             lease?.label ?? "—",
-            Self.clock(now.timeIntervalSince(lease?.grantedAt ?? slot.stateSince)),
-            lease.map { Self.remaining($0.expiresAt.timeIntervalSince(now)) } ?? "—",
+            DurationFormat.clock(now.timeIntervalSince(lease?.grantedAt ?? slot.stateSince)),
+            lease.map { DurationFormat.remaining($0.expiresAt.timeIntervalSince(now)) } ?? "—",
         ]
         let widths = Self.slotColumns.map(\.1)
         var rendered = zip(cells, widths).map { Self.pad($0, $1) }
@@ -76,19 +76,5 @@ struct StatusRenderer {
     static func pad(_ text: String, _ width: Int) -> String {
         if text.count > width { return String(text.prefix(width - 1)) + "…" }
         return text.padding(toLength: width, withPad: " ", startingAt: 0)
-    }
-
-    static func clock(_ interval: TimeInterval) -> String {
-        let total = max(0, Int(interval))
-        let (hours, minutes, seconds) = (total / 3600, total / 60 % 60, total % 60)
-        return hours > 0
-            ? String(format: "%d:%02d:%02d", hours, minutes, seconds)
-            : String(format: "%d:%02d", minutes, seconds)
-    }
-
-    static func remaining(_ interval: TimeInterval) -> String {
-        guard interval > 0 else { return "expired" }
-        let minutes = Int(interval) / 60
-        return minutes >= 60 ? "\(minutes / 60)h\(String(format: "%02d", minutes % 60))" : "\(minutes)m"
     }
 }

@@ -11,6 +11,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .executable(name: "berth", targets: ["berth"]),
+        .executable(name: "berth-bar", targets: ["BerthBar"]),
         .library(name: "BerthCore", targets: ["BerthCore"]),
     ],
     dependencies: [
@@ -28,6 +29,8 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ] + nio
         ),
+        .executableTarget(name: "BerthBar", dependencies: ["BerthCore"]),
+        .testTarget(name: "BerthBarTests", dependencies: ["BerthBar", "BerthCore"]),
         .testTarget(name: "BerthCoreTests", dependencies: ["BerthCore"]),
         .testTarget(name: "BerthDaemonTests", dependencies: ["BerthDaemon", "BerthCore"]),
     ]
