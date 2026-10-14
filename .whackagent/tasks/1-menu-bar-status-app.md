@@ -1,6 +1,6 @@
 ---
 issue: 1
-phase: review
+phase: validated
 wiki: [[architecture]], [[cli]]
 note:
 created: 2026-10-14
@@ -73,6 +73,17 @@ Round 2 found 2 issues, both fixed:
 
 Round 3: clean.
 
+### validation — 2026-10-14 (after feedback round 1)
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean after one autofix round. The rebase onto `main` (#4 iOS simulators) broke nothing.
+
+Round 1 found 3 minor issues, all fixed by autofix:
+- correctness: the popover was shown without activating the app, so it never became key. Its Cmd-Q could not fire, and it did not reliably close on a click outside. `NSApp.activate()` now runs before `popover.show`.
+- correctness: the `.accessory` policy was set in `applicationDidFinishLaunching`, so the Dock icon could flash at launch. It moved to `applicationWillFinishLaunching`.
+- elegance: an empty SwiftUI `Settings` scene existed only to satisfy `App`. It was replaced by an AppKit entry point: `App/BerthBarMain.swift` with `@main` and `static func main()`. `BerthBarApp.swift` was deleted.
+
+Round 2: clean.
+
 ## Verification
 
 Runtime check by agent, `BERTH_HOME=/tmp/bb1`, pool `Emu_2` only:
@@ -95,6 +106,13 @@ Feedback round 1 — runtime check by agent, with no mouse, keystroke or focus c
 - ✅ The `berth status` format is identical to `main`.
 - The popover opened without taking focus. Frontmost app and cursor were sampled, but changes between samples could not be told apart from the user's own activity.
 - Not proven: a real mouse click. This was not run, by design.
+
+Validation autofix — runtime re-check by agent, with no mouse, keystroke or focus change. The popover was not opened, because it now activates the app and would take the user's focus.
+- ✅ `lsappinfo` reports the type `UIElement` 0.3 s after launch and again at the end: no Dock icon, no flash.
+- ✅ The frontmost app stayed unchanged across the launch.
+- ✅ No window for the pid, so there is no Settings window.
+- ✅ The status item title read by pid was empty with the daemon down, then ` 0/0` within 3 s of the daemon starting. No daemon was spawned.
+- Not re-driven: opening the popover and Quit. The panel rendering itself is unchanged since feedback round 1.
 
 ## Feedback
 
