@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "berth",
+  "owner": { "name": "Lunabee Studio" },
+  "metadata": { "description": "Lease Android emulators and iOS simulators to parallel AI agents without collisions." },
+  "plugins": [
+    {
+      "name": "berth",
+      "source": "./claude-plugin",
+      "description": "Berth rules for agents plus a guard hook that blocks device commands outside a berth lease.",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": ["android", "ios", "emulator", "simulator", "adb", "parallel agents"]
+    }
+  ]
+}

@@ -10,7 +10,7 @@ struct Berth: AsyncParsableCommand {
         version: "0.1.0",
         subcommands: [
             Claim.self, Release.self, Renew.self, Run.self,
-            Status.self, Top.self, Prepare.self, StopAll.self, DaemonCommand.self,
+            Status.self, Top.self, Prepare.self, StopAll.self, DaemonCommand.self, Guard.self,
         ]
     )
 }
