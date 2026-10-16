@@ -37,38 +37,30 @@ struct DaemonStop: AsyncParsableCommand {
     }
 }
 
-enum LaunchAgent {
-    static let label = "com.berth.daemon"
-    static var plist: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/LaunchAgents/\(label).plist")
-    }
-    static var domain: String { "gui/\(getuid())" }
-}
-
 struct DaemonInstall: AsyncParsableCommand {
     static let configuration = CommandConfiguration(commandName: "install", abstract: "Start the broker at login via launchd.")
 
     func run() async throws {
-        let executable = URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0]).resolvingSymlinksInPath().path
+        let executable: String = LaunchAgent.currentExecutablePath()
         try Paths.ensureDirectories()
+        let agent: LaunchAgent = .daemon
         let plist: [String: Any] = [
-            "Label": LaunchAgent.label,
+            "Label": agent.label,
             "ProgramArguments": [executable, "daemon", "run"],
             "RunAtLoad": true,
             "KeepAlive": ["SuccessfulExit": false],
             "StandardOutPath": Paths.daemonLog.path,
             "StandardErrorPath": Paths.daemonLog.path,
         ]
-        try FileManager.default.createDirectory(at: LaunchAgent.plist.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: LaunchAgent.plist)
+        try agent.write(plist)
         _ = try? await DaemonClient.call(.shutdown, autoSpawn: false)
-        _ = try? await Shell.run("/bin/launchctl", ["bootout", LaunchAgent.domain, LaunchAgent.plist.path])
-        let result = try await Shell.run("/bin/launchctl", ["bootstrap", LaunchAgent.domain, LaunchAgent.plist.path])
+        _ = try? await Shell.run("/bin/launchctl", ["bootout", agent.domain, agent.plist.path])
+        let result = try await Shell.run("/bin/launchctl", ["bootstrap", agent.domain, agent.plist.path])
         guard result.succeeded else {
             printError("berth: launchctl bootstrap failed: \(result.stderr)")
             throw ExitCode.failure
         }
-        printError("berth: installed \(LaunchAgent.plist.path)")
+        printError("berth: installed \(agent.plist.path)")
     }
 }
 
@@ -76,8 +68,9 @@ struct DaemonUninstall: AsyncParsableCommand {
     static let configuration = CommandConfiguration(commandName: "uninstall", abstract: "Remove the launchd agent.")
 
     func run() async throws {
-        _ = try? await Shell.run("/bin/launchctl", ["bootout", LaunchAgent.domain, LaunchAgent.plist.path])
-        try? FileManager.default.removeItem(at: LaunchAgent.plist)
+        let agent: LaunchAgent = .daemon
+        _ = try? await Shell.run("/bin/launchctl", ["bootout", agent.domain, agent.plist.path])
+        try? agent.remove()
         printError("berth: uninstalled")
     }
 }

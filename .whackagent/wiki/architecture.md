@@ -16,8 +16,8 @@ berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
 ```
 
 ## Modules
-- `BerthCore` — shared by CLI, daemon, bar: `Model` (Slot, Lease, Owner, StateSnapshot), `Platform` (android | ios), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config` (pool entry `avd` | `simulator`, `platform(of:)`, `models(for:)`), `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness), `Watch` (`DaemonWatch` reconnecting watch stream), `Format` (`DurationFormat`).
-- `BerthBar` — `berth-bar` AppKit `NSStatusItem` + `NSPopover` (SwiftUI panel) app, BerthCore only. `App/` entry, `Status/` model + state, `MenuBar/` status item + label, `Panel/` views. Read-only; `autoSpawn: false` (spawn would relaunch itself).
+- `BerthCore` — shared by CLI, daemon, bar: `Model` (Slot, Lease, Owner, StateSnapshot), `Platform` (android | ios), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config` (pool entry `avd` | `simulator`, `platform(of:)`, `models(for:)`), `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness), `Watch` (`DaemonWatch` reconnecting watch stream), `Format` (`DurationFormat`), `Launchd` (`LaunchAgent`: per-user plist in `~/Library/LaunchAgents`, write/remove/isInstalled, no launchctl).
+- `BerthBar` — `berth-bar` AppKit `NSStatusItem` + `NSPopover` (SwiftUI panel) app, BerthCore only. `App/` entry, `Status/` model + state, `MenuBar/` status item + label, `Panel/` views, `Login/` launch-at-login checkbox (`com.berth.bar` plist). Read-only toward daemon; `autoSpawn: false` (spawn would relaunch itself).
 - `BerthDaemon` — `Broker`, `Server`, `Daemon` (lock, config, reap loop), `Backends/` (`DeviceBackend` protocol, `DeviceRouter`, `AndroidBackend`, `IOSSimulatorBackend`), `StateStore`.
 - `berth` — ArgumentParser commands + TUI → [[cli]]; `Guard/` shell tokenizer + device rules for `berth guard` → [[claude-code]].
 
@@ -27,6 +27,7 @@ berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
 - **Persistence**: `state.json` rewritten each change; restart adopts slots w/ serial still in `adb devices` (free/leased kept, transitional stopped).
 - **Paths**: `BERTH_HOME` relocates config/state/socket/logs (default `~/Library/Application Support/berth`, logs `~/Library/Logs/berth`). Socket path ≤ 104 bytes.
 - **Shell output → temp files, not pipes**: adb may fork server inheriting pipe → read never EOF.
+- **Login items = launchd agents, not `SMAppService`**: `berth-bar` bare executable, no `.app` bundle. Daemon `com.berth.daemon` (`berth daemon install`, KeepAlive, bootstrap now). Bar `com.berth.bar` (panel checkbox, RunAtLoad only, no KeepAlive → Quit sticks; no bootstrap/bootout → no 2nd instance, no self-kill). Checkbox on ⇔ plist exists. Plist keeps binary path + `BERTH_HOME` from when enabled. → #8
 - Emulators spawned w/ `POSIX_SPAWN_CLOEXEC_DEFAULT` → no inherited daemon socket fds.
 
 ## Extending

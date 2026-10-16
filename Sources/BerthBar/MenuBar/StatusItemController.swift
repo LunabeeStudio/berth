@@ -5,13 +5,15 @@ import SwiftUI
 @MainActor
 final class StatusItemController: NSObject {
     private let model: StatusModel
+    private let launchAtLogin: LaunchAtLogin
     private let item: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover: NSPopover = .init()
 
-    init(model: StatusModel) {
+    init(model: StatusModel, launchAtLogin: LaunchAtLogin) {
         self.model = model
+        self.launchAtLogin = launchAtLogin
         super.init()
-        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model))
+        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin))
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
         popover.behavior = .transient
@@ -26,6 +28,7 @@ final class StatusItemController: NSObject {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            launchAtLogin.refresh()
             NSApp.activate()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }

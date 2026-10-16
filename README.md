@@ -62,6 +62,8 @@ swift build -c release
 .build/release/berth-bar &                  # no Dock icon; Quit is in the panel
 ```
 
+The panel has a "Launch at login" checkbox. It writes `~/Library/LaunchAgents/com.berth.bar.plist` (label `com.berth.bar`), which keeps the path of the binary: toggle it off and on after moving `berth-bar`.
+
 It never starts the daemon: while the daemon is down the panel says so, and it reconnects on its own once the daemon runs.
 
 ## How it behaves
