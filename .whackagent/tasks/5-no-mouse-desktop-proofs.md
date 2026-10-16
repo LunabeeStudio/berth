@@ -1,6 +1,6 @@
 ---
 issue: 5
-phase: review
+phase: validated
 wiki: [[architecture]]
 note: Prior art Kokoriko #155 (LunabeeStudio/kokoriko PR #167, tools/desktop/kokoriko-ui-window.swift, CLAUDE.md "Desktop UI proofs").
 created: 2026-10-16
@@ -33,19 +33,20 @@ Prior art: Kokoriko #155 ships `tools/desktop/kokoriko-ui-window.swift` (window 
   - When the environment variable `BERTH_PANEL_PNG_DIR` is set, each test also writes `<state>.png` into that directory, so an agent or a human can look at the panel without opening it. Unset, nothing is written.
 - **Test seam.** (autopilot assumption) `StatusPanel` stays bound to `StatusModel`. `StatusModel` gets an internal initializer that takes a fixed `StatusState` and `now` and starts no watch and no tick. The existing `init()` keeps its behavior (it watches the daemon with `autoSpawn: false` and ticks every second). No debug flag in `berth-bar`, no other product code change.
 - **Out of scope.** Driving the popover or the Quit button on screen, dark appearance renders, and any change to the whackagent plugin.
-- **Found while coding: the status item is not the app's window.** (autopilot assumption, open for the user) On this Mac (macOS 27), the `berth-bar` status item is drawn by `MenuBarAgent`, another process. The `berth-bar` pid owns only its popover window, which stays off screen while the popover is closed. So `window-id` and `capture` by pid cannot reach the status item, and the two criteria about it cannot pass as written. The code was not bent to reach the item through another pid or a screen region, because the rule forbids both. `window-id` and `capture` address the pid's own on-screen windows, for example the popover once a human has opened it. `CLAUDE.md` says the status item label is proven by an Accessibility title read addressed by pid, or by a human. Recommended amendment: replace the two status item criteria with "the status item title, read by Accessibility on the pid, is empty with the daemon down".
+- **Found while coding: the status item is not the app's window.** (Decided by the user on 2026-10-16 at `/wa-validate`: amend the criteria as recommended below. Done.) On this Mac (macOS 27), the `berth-bar` status item is drawn by `MenuBarAgent`, another process. The `berth-bar` pid owns only its popover window, which stays off screen while the popover is closed. So `window-id` and `capture` by pid cannot reach the status item, and the two criteria about it cannot pass as written. The code was not bent to reach the item through another pid or a screen region, because the rule forbids both. `window-id` and `capture` address the pid's own on-screen windows, for example the popover once a human has opened it. `CLAUDE.md` says the status item label is proven by an Accessibility title read addressed by pid, or by a human. Recommended amendment: replace the two status item criteria with "the status item title, read by Accessibility on the pid, is empty with the daemon down".
 
 ## Acceptance criteria
 
 - `swift build` and `swift test` pass.
 - `CLAUDE.md` has a `## Desktop proofs` section that states every rule listed under "Written rule" above, and the `.whackagent/config.md` project notes have one line that points to it.
 - `xcrun swift tools/desktop/desk.swift desk-state` prints one JSON line with the frontmost app's pid and name and the cursor's x and y.
-- With `berth-bar` launched in the background by the agent, `xcrun swift tools/desktop/desk.swift window-id <pid>` prints a window id and exits 0. For the pid of a process with no window, it prints nothing and exits 1.
-- `xcrun swift tools/desktop/desk.swift capture <pid> <out.png>` writes a PNG that shows only the `berth-bar` status item (its symbol and label), even when another app is in front.
+- For a pid that owns an on-screen window, `xcrun swift tools/desktop/desk.swift window-id <pid>` prints a window id and exits 0. For the pid of a process with no window, it prints nothing and exits 1.
+- With the `berth-bar` popover opened by a human, `xcrun swift tools/desktop/desk.swift capture <pid> <out.png>` writes a PNG that shows only the popover, even when another app is in front. (Checked by a human.)
 - Across launching `berth-bar`, `window-id`, `capture` and `kill <pid>`, the frontmost app reported by `desk-state` does not change.
 - `swift test` runs a panel render test for each of the four states: connecting, disconnected, live empty, and live with a leased emulator plus a queued claim. Each produces a non-empty image 620 pt wide.
 - With `BERTH_PANEL_PNG_DIR` set, the render tests write one PNG per state into that directory. The PNGs show readable text: "connecting…"; "daemon not running" with its reason; "none running" and "empty"; and the emulator row and queue row in full, not truncated. The Quit button is visible in each.
-- `berth-bar` behaves as before: launched with the daemon down, it starts no daemon and its status item title is empty.
+- `berth-bar` behaves as before: launched with the daemon down, it starts no daemon.
+- With the daemon down, the `berth-bar` status item title, read by Accessibility addressed to the pid, is empty. (Checked by a human, because the agent's shell has no Accessibility access.)
 
 ## Implementation
 
@@ -80,6 +81,14 @@ Round 2 found 1 new minor issue, fixed:
 - minor, correctness: `CLAUDE.md` stated "the status item is drawn by `MenuBarAgent`" for every macOS. It now says this was seen on macOS 27, and that on older macOS `window-id` may return the status item.
 
 Round 3: only the critical spec finding remains.
+
+### validation — 2026-10-16
+
+The user accepted the open critical finding and chose to amend the spec, with no code change.
+- The two criteria about capturing the status item by pid are replaced. `window-id` is now proven on any on-screen window owned by the pid. `capture` is checked by a human on the popover once it is open.
+- A new criterion covers the status item: its title, read by Accessibility on the pid, is empty with the daemon down. A human checks it.
+
+The code is unchanged since the autopilot review, so the verifier was not re-run. Verdict: clean, with the finding accepted.
 
 ## Verification
 

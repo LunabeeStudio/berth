@@ -20,6 +20,7 @@ berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
 - `BerthBar` — `berth-bar` AppKit `NSStatusItem` + `NSPopover` (SwiftUI panel) app, BerthCore only. `App/` entry, `Status/` model + state, `MenuBar/` status item + label, `Panel/` views, `Login/` launch-at-login checkbox (`com.berth.bar` plist). Read-only toward daemon; `autoSpawn: false` (spawn would relaunch itself).
 - `BerthDaemon` — `Broker`, `Server`, `Daemon` (lock, config, reap loop), `Backends/` (`DeviceBackend` protocol, `DeviceRouter`, `AndroidBackend`, `IOSSimulatorBackend`), `StateStore`.
 - `berth` — ArgumentParser commands + TUI → [[cli]]; `Guard/` shell tokenizer + device rules for `berth guard` → [[claude-code]].
+- `tools/desktop/desk.swift` — standalone script (outside package, `xcrun swift`): `desk-state`, `window-id <pid>`, `capture <pid>` (`screencapture -l`). Desktop proofs of `berth-bar` never take mouse/keyboard/focus → `CLAUDE.md#Desktop proofs`. Panel proven offscreen: `BerthBarTests/Panel` renders `StatusPanel` per state (`StatusModel.init(state:now:)`), `BERTH_PANEL_PNG_DIR` → PNGs. macOS 27: status item drawn by `MenuBarAgent`, not app pid → not capturable; popover open steals focus (`NSApp.activate`) → human checks click + Quit.
 
 ## Key decisions
 - **Daemon auto-spawn**: no socket → client `posix_spawn`s `berth daemon run` w/ SETSID (outlives client, immune to terminal SIGHUP/SIGINT), retries connect 5 s. `flock` on `daemon.lock` → single daemon; loser exits 0.
