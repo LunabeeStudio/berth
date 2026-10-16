@@ -11,6 +11,7 @@ ArgumentParser `AsyncParsableCommand`s in `Sources/berth/`. Root `Berth` (Berth.
 | `top` | TUI, need tty |
 | `prepare <avd>` | Android only (rejects simulator entry); see [[android-backend]] |
 | `guard` | Claude Code PreToolUse hook: stdin payload → exit 0 allow / 2 deny + stderr reason; no daemon; see [[claude-code]] |
+| `update [--check]` | install latest GitHub release over own binary + sibling `berth-bar`; no daemon; dev build exit 1; see [[update]] |
 | `daemon run/stop/install/uninstall` | install = launchd agent `com.berth.daemon` |
 
 ## Exit codes
