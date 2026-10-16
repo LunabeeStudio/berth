@@ -39,4 +39,16 @@ struct ConfigTests {
             try JSONDecoder().decode(PoolEntry.self, from: Data(#"{"maxInstances": 1}"#.utf8))
         }
     }
+
+    @Test
+    func `autoUpdate defaults to true when the key is absent`() throws {
+        let config: Config = try JSONDecoder().decode(Config.self, from: Data(#"{"maxRunning": 3}"#.utf8))
+        #expect(config.autoUpdate)
+    }
+
+    @Test
+    func `autoUpdate false is honoured`() throws {
+        let config: Config = try JSONDecoder().decode(Config.self, from: Data(#"{"autoUpdate": false}"#.utf8))
+        #expect(!config.autoUpdate)
+    }
 }

@@ -147,6 +147,15 @@ public actor Broker {
         )
     }
 
+    /// Actor isolation keeps every claim out between the idle check and `body`.
+    /// - Returns: whether the broker was idle and `body` ran.
+    @discardableResult
+    func performIfIdle(_ body: @Sendable () -> Void) -> Bool {
+        guard isIdle else { return false }
+        body()
+        return true
+    }
+
     // endregion
 
     // region Housekeeping
@@ -215,6 +224,11 @@ public actor Broker {
     // endregion
 
     // region Scheduling
+
+    /// No lease, no waiting claim and no slot in transition: safe to replace the process.
+    private var isIdle: Bool {
+        waiters.isEmpty && slots.values.allSatisfy { $0.state == .free }
+    }
 
     private func schedule() {
         grantFreeSlots()

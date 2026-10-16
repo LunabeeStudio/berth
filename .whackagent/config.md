@@ -42,7 +42,7 @@ backlog:
                                # Empty → tasks get no milestone.
 
 release:
-  doc:                         # WHERE release flow written — `path` or `path#Heading`
+  doc: docs/RELEASING.md       # WHERE release flow written — `path` or `path#Heading`
                                # (docs/RELEASING.md, {wiki}/release.md, CLAUDE.md#Releasing).
                                # /wa-release follow it step by step, never invent flow.
                                # Empty → /wa-release search markdown, else interview you + write it.

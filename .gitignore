@@ -6,3 +6,4 @@ DerivedData/
 
 .whackagent/reports/*
 !.whackagent/reports/.gitkeep
+dist/

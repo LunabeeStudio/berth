@@ -15,13 +15,21 @@ Native Swift 6 binary for macOS (Apple silicon), no runtime.
 ## Install
 
 ```bash
-swift build -c release
-cp .build/release/berth ~/.local/bin/      # or anywhere on PATH
+mkdir -p ~/.local/bin && curl -fsSL https://github.com/LunabeeStudio/berth/releases/latest/download/berth-macos-arm64.tar.gz | tar -xz -C ~/.local/bin
 berth prepare <AVD>                         # once per AVD: saves the clean snapshot (≈30 s)
 berth status                                # starts the daemon, writes the default config
 ```
 
+`~/.local/bin` must be on your PATH. The archive holds `berth` and `berth-bar`.
+
 Optional: `berth daemon install` starts the daemon at login via launchd (otherwise any command starts it).
+
+### From source
+
+```bash
+swift build -c release
+cp .build/release/berth .build/release/berth-bar ~/.local/bin/
+```
 
 ## Use
 
@@ -35,6 +43,7 @@ Optional: `berth daemon install` starts the daemon at login via launchd (otherwi
 | `berth status [--json]` / `berth top` | one-shot table / live TUI (`↑↓` select, `r` release, `x` stop, `q` quit) |
 | `berth guard` | Claude Code hook: blocks device commands outside a lease (reads the hook payload on stdin) |
 | `berth stop-all` | stop every emulator berth started |
+| `berth update [--check]` | install the latest GitHub release over `berth` (and the `berth-bar` beside it); `--check` only reports the running and latest versions |
 | `berth daemon stop` | stop the daemon (emulators keep running and are adopted on restart); needed after editing the config |
 
 Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS.md` (Claude Code users: see below).
@@ -58,9 +67,10 @@ Without `berth` on PATH the hook does nothing. Disable the plugin in `/plugin` t
 `berth-bar` is a read-only menu bar item showing what is running: label `<leased>/<running>` (plus `+N` when claims wait), panel with emulators and the queue.
 
 ```bash
-swift build -c release
-.build/release/berth-bar &                  # no Dock icon; Quit is in the panel
+berth-bar &                                 # no Dock icon; Quit is in the panel
 ```
+
+Installed with `berth` (see Install). From a source checkout: `swift build -c release && .build/release/berth-bar &`.
 
 The panel has a "Launch at login" checkbox. It writes `~/Library/LaunchAgents/com.berth.bar.plist` (label `com.berth.bar`), which keeps the path of the binary: toggle it off and on after moving `berth-bar`.
 
@@ -98,12 +108,21 @@ It never starts the daemon: while the daemon is down the panel says so, and it r
   "defaultTTLSeconds": 3600,
   "bootTimeoutSeconds": 300,
   "snapshotName": "berth-clean",
+  "autoUpdate": true,
   "pool": [
     { "avd": "Pixel_9", "maxInstances": 2 },
     { "simulator": "iPhone 17", "maxInstances": 2 }
   ]
 }
 ```
+
+## Updates
+
+`berth update` downloads the latest release from GitHub, checks its SHA-256, and replaces `berth` and the `berth-bar` beside it
+(the install directory must be writable). With `autoUpdate` true (the default, also when the key is absent) the daemon does the
+same about a minute after it starts and then every 24 h, and logs the outcome in `daemon.log`. After the binary changes on disk the
+daemon restarts itself in place once no lease, waiting claim or booting emulator is left; emulators and leases are kept.
+Set `"autoUpdate": false` to opt out. Local `dev` builds never update. A running `berth-bar` keeps the old version until you relaunch it.
 
 Logs: `~/Library/Logs/berth/` (`daemon.log`, one file per emulator). `BERTH_HOME` relocates config, state,
 socket and logs (keep it short: Unix socket paths are limited to 104 bytes).

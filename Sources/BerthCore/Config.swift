@@ -45,6 +45,7 @@ public struct Config: Codable, Sendable {
     public var defaultTTLSeconds: Int
     public var bootTimeoutSeconds: Int
     public var snapshotName: String
+    public var autoUpdate: Bool
     public var pool: [PoolEntry]
 
     public init(
@@ -54,6 +55,7 @@ public struct Config: Codable, Sendable {
         defaultTTLSeconds: Int = 3600,
         bootTimeoutSeconds: Int = 300,
         snapshotName: String = "berth-clean",
+        autoUpdate: Bool = true,
         pool: [PoolEntry] = []
     ) {
         self.sdkRoot = sdkRoot
@@ -62,6 +64,7 @@ public struct Config: Codable, Sendable {
         self.defaultTTLSeconds = defaultTTLSeconds
         self.bootTimeoutSeconds = bootTimeoutSeconds
         self.snapshotName = snapshotName
+        self.autoUpdate = autoUpdate
         self.pool = pool
     }
 
@@ -74,6 +77,7 @@ public struct Config: Codable, Sendable {
         defaultTTLSeconds = try c.decodeIfPresent(Int.self, forKey: .defaultTTLSeconds) ?? defaults.defaultTTLSeconds
         bootTimeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .bootTimeoutSeconds) ?? defaults.bootTimeoutSeconds
         snapshotName = try c.decodeIfPresent(String.self, forKey: .snapshotName) ?? defaults.snapshotName
+        autoUpdate = try c.decodeIfPresent(Bool.self, forKey: .autoUpdate) ?? defaults.autoUpdate
         pool = try c.decodeIfPresent([PoolEntry].self, forKey: .pool) ?? []
     }
 
