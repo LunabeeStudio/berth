@@ -4,6 +4,7 @@ import SwiftUI
 
 struct StatusPanel: View {
     let model: StatusModel
+    @Bindable var launchAtLogin: LaunchAtLogin
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -17,6 +18,8 @@ struct StatusPanel: View {
                 Text(reason).font(.caption).foregroundStyle(.secondary)
             }
             Divider()
+            Toggle("Launch at login", isOn: $launchAtLogin.isEnabled)
+                .toggleStyle(.checkbox)
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
         }

@@ -1,6 +1,6 @@
 ---
 issue: 8
-phase:
+phase: validated
 wiki: [[architecture]], [[cli]]
 note:
 created: 2026-10-16
@@ -43,8 +43,35 @@ Prior art: `SMAppService.mainApp` / `SMAppService.agent(plistName:)` (ServiceMan
 
 ## Implementation
 
+Brick 1 — shared launchd helper in `BerthCore`, no behavior change:
+- `Sources/BerthCore/Launchd/LaunchAgent.swift`: `LaunchAgent(label:directory:)` — plist URL, `isInstalled`, `domain` (`gui/<uid>`), `write(_:)` (XML, creates dir), `remove()` (no-op if absent), `currentExecutablePath()` (symlinks resolved).
+- `Sources/berth/Commands/Extensions/LaunchAgentExtension.swift`: `LaunchAgent.daemon` (`com.berth.daemon`). `Daemon.swift` install/uninstall use it; plist path, content and launchctl calls unchanged.
+- `Sources/BerthCore/Paths.swift`: `Paths.homeVariable` (`BERTH_HOME`), used everywhere the name appears.
+- `Tests/BerthCoreTests/Launchd/LaunchAgentTests.swift` (temp dir only).
+
+Brick 2 — `berth-bar` checkbox:
+- `Sources/BerthBar/Login/LaunchAtLogin.swift`: `@Observable @MainActor`; settable `isEnabled` writes/removes `com.berth.bar.plist` then re-reads the file (always notifies, so the checkbox never lies); `refresh()`; pure `plist(label:executable:environment:)`.
+- `Panel/StatusPanel.swift`: `Toggle("Launch at login")`, checkbox style, above Quit, every state. `MenuBar/StatusItemController.swift` calls `refresh()` before showing the popover; `App/BerthBarDelegate.swift` wires it.
+- `Tests/BerthBarTests/Login/LaunchAtLoginTests.swift`: plist keys (no `KeepAlive`), `BERTH_HOME` set/absent/empty, enable/disable round trip, refresh after outside change.
+- README "Menu bar": checkbox, plist path, toggle off/on after moving the binary.
+
+Build: `swift build` green. Tests: `swift test` green (35 + 14 + 10 tests across runs).
+
 ## Review
 
+### validation (autopilot) — 2026-10-16
+
+Round 1: 12 minor findings — correctness: checkbox could stay checked after a failed write; panel showed stale state when the plist changed outside the app. Structure: `BERTH_HOME` literal repeated; daemon label sat in `BerthCore`. Style: member order, explicit types. Elegance: `set(_:)` + hand-built `Binding`.
+Autofix: settable `isEnabled` with `withMutation` + `@Bindable`; `refresh()` before popover show; `Paths.homeVariable`; `LaunchAgent.daemon` moved to `berth` target extension; order + explicit types fixed.
+Round 2: all 12 fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean.
+
 ## Verification
+
+- ✅ `swift build` + `swift test` pass.
+- ✅ Builder output written to a temp dir: `plutil -lint` OK; `plutil -p` shows `Label com.berth.bar`, `ProgramArguments`, `RunAtLoad 1`, `LimitLoadToSessionType Aqua`, `ProcessType Interactive`, `EnvironmentVariables {BERTH_HOME}` when set, no `KeepAlive`.
+- ✅ Tests: write/remove/isInstalled round trip, refresh after outside change, `BERTH_HOME` absent → no `EnvironmentVariables`.
+- ✅ `berth daemon --help` still lists run, stop, install, uninstall.
+- ✅ `BERTH_HOME=<tmp> .build/debug/berth-bar` starts and stays up (2 s, killed).
+- Not run by agent (needs mouse or a real login): clicking the checkbox, logout/login launch, Quit not restarted by launchd, real `berth daemon install`/`uninstall`.
 
 ## Feedback

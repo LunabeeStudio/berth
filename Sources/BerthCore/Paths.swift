@@ -1,8 +1,10 @@
 import Foundation
 
 public enum Paths {
+    public static let homeVariable: String = "BERTH_HOME"
+
     public static let home: URL = {
-        if let custom = ProcessInfo.processInfo.environment["BERTH_HOME"], !custom.isEmpty {
+        if let custom = ProcessInfo.processInfo.environment[homeVariable], !custom.isEmpty {
             return URL(fileURLWithPath: custom, isDirectory: true)
         }
         return FileManager.default.homeDirectoryForCurrentUser
@@ -10,7 +12,7 @@ public enum Paths {
     }()
 
     public static let logs: URL = {
-        if ProcessInfo.processInfo.environment["BERTH_HOME"] != nil {
+        if ProcessInfo.processInfo.environment[homeVariable] != nil {
             return home.appending(path: "logs", directoryHint: .isDirectory)
         }
         return FileManager.default.homeDirectoryForCurrentUser
