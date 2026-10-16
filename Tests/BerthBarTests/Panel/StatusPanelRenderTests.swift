@@ -30,7 +30,12 @@ struct StatusPanelRenderTests {
 
     private static func render(_ state: StatusState, named name: String) throws -> NSBitmapImageRep {
         let model: StatusModel = .init(state: state, now: now)
-        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model))
+        let login: LaunchAtLogin = .init(
+            agent: .temporary(label: "com.berth.bar.render"),
+            executable: "/opt/berth-bar",
+            environment: [:]
+        )
+        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login))
         host.appearance = NSAppearance(named: .aqua)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()

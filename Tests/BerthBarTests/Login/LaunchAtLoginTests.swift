@@ -7,12 +7,6 @@ import Testing
 @MainActor
 @Suite
 struct LaunchAtLoginTests {
-    private static func tempAgent() -> LaunchAgent {
-        let directory: URL = FileManager.default.temporaryDirectory
-            .appending(path: "berth-bar-login-\(UUID().uuidString)", directoryHint: .isDirectory)
-        return .init(label: "com.berth.bar.test", directory: directory)
-    }
-
     @Test
     func `plist runs the executable at load in the GUI session without keep alive`() {
         let plist: [String: Any] = LaunchAtLogin.plist(label: "com.berth.bar", executable: "/opt/berth-bar", environment: [:])
@@ -34,7 +28,7 @@ struct LaunchAtLoginTests {
 
     @Test
     func `enable then disable round trips through the plist file`() {
-        let agent: LaunchAgent = Self.tempAgent()
+        let agent: LaunchAgent = .temporary(label: "com.berth.bar.test")
         defer { try? FileManager.default.removeItem(at: agent.plist.deletingLastPathComponent()) }
         let login: LaunchAtLogin = .init(agent: agent, executable: "/x", environment: [:])
         #expect(!login.isEnabled)
@@ -50,7 +44,7 @@ struct LaunchAtLoginTests {
 
     @Test
     func `refresh picks up a plist added outside the app`() throws {
-        let agent: LaunchAgent = Self.tempAgent()
+        let agent: LaunchAgent = .temporary(label: "com.berth.bar.test")
         defer { try? FileManager.default.removeItem(at: agent.plist.deletingLastPathComponent()) }
         let login: LaunchAtLogin = .init(agent: agent, executable: "/x", environment: [:])
 

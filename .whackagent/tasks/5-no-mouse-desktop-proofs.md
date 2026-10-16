@@ -90,6 +90,17 @@ The user accepted the open critical finding and chose to amend the spec, with no
 
 The code is unchanged since the autopilot review, so the verifier was not re-run. Verdict: clean, with the finding accepted.
 
+The rebase onto `main` (#9 Launch on login) then broke the render tests, so the round stopped. Feedback round 1 fixed them.
+
+### validation (after feedback round 1) — 2026-10-16
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean after one autofix round. The verifier checked the whole ticket range after the rebase; it touches only its own files.
+
+Round 1 found 1 minor issue, fixed by autofix:
+- minor, structure: the render test duplicated the temporary `LaunchAgent` setup of `LaunchAtLoginTests`. Both suites now use `LaunchAgent.temporary(label:)` in `Tests/BerthBarTests/Login/LaunchAgent+Temporary.swift`.
+
+Round 2: clean.
+
 ## Verification
 
 Runtime check by agent, with no mouse, keystroke or focus change. `BERTH_HOME=/tmp/bb5`, daemon down, no emulator.
@@ -102,4 +113,25 @@ Runtime check by agent, with no mouse, keystroke or focus change. `BERTH_HOME=/t
 - ✅ The 4 render tests pass. The PNGs show "connecting…"; "daemon not running" with its reason; "0/3 running · 0 waiting", "none running" and "empty"; and `emulator-5554 Pixel_8 leased claude#4242 demo 0:09 59m` plus `1 codex#4343 checkout Pixel_Tablet 0:05`, nothing truncated. Quit is drawn as a real button in each.
 - ✅ With the daemon down, `berth-bar` started no `daemon run` and created no socket. The status item title was not read: Accessibility was not available in the agent's shell.
 
+After the spec amendment, the two ❌ lines above no longer apply. `window-id` is proven on an on-screen window. The popover capture and the status item title are checked by a human.
+
+Feedback round 1, runtime re-check by agent on the rebased branch:
+- ✅ `swift build` passes. `swift test` passes: 14 tests in 3 suites, plus XCTest.
+- ✅ The 4 PNGs again show readable text and full rows, and Quit is a real button. The new "Launch at login" checkbox from #9 renders unchecked above Quit.
+- ✅ No plist was written under `~/Library/LaunchAgents`.
+
 ## Feedback
+
+### Round 1 — 2026-10-16
+
+**Asked**: "feedback validate autopilot afk". This was the answer to the recommended fix: make the render tests pass on the new `main`.
+
+**Triage**: defect. #9 added a `launchAtLogin` parameter to `StatusPanel`, and the render tests no longer compiled after the rebase. The acceptance criteria are unchanged.
+
+**What changed** (route: implementer):
+- `StatusPanelRenderTests` passes a `LaunchAtLogin` built on a temporary `LaunchAgent` with a fixed executable and an empty environment. It never touches `~/Library/LaunchAgents`.
+- The shared helper `LaunchAgent.temporary(label:)` is new, in `Tests/BerthBarTests/Login/LaunchAgent+Temporary.swift`, and `LaunchAtLoginTests` uses it too. That change came from the autofix.
+
+**Review**: clean. See `## Review`, "validation (after feedback round 1)".
+
+**Verify**: ✅. See `## Verification`, feedback round 1.
