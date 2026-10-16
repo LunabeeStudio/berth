@@ -72,7 +72,7 @@ Fixed by autofix:
 - ✅ Extracted archive holds `berth` and `berth-bar`; `berth --version` prints `1.2.3`.
 - ✅ `package.sh` run from another cwd with a relative out dir writes there.
 - ✅ Tag check logic run locally: `v0.1.0` passes, `v0.2.0` fails (plugin version mismatch), `v1.2` fails (regex).
-- ⏳ PR run of the Release workflow on the runner: checked after push (see PR checks).
+- ✅ PR #14 run of the Release workflow on `macos-26` (run 38912997948): `build` green in 2m33s, `publish` skipped, no release created. Artifact `berth-macos-arm64`: `shasum -a 256 -c` OK, holds `berth` + `berth-bar`, `berth --version` prints `0.0.0`.
 - ❌ not run by agent: pushing a real tag creating a release (needs a human to tag).
 
 ## Feedback
