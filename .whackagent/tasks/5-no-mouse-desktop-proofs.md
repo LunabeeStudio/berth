@@ -1,6 +1,6 @@
 ---
 issue: 5
-phase:
+phase: review
 wiki: [[architecture]]
 note: Prior art Kokoriko #155 (LunabeeStudio/kokoriko PR #167, tools/desktop/kokoriko-ui-window.swift, CLAUDE.md "Desktop UI proofs").
 created: 2026-10-16
@@ -33,6 +33,7 @@ Prior art: Kokoriko #155 ships `tools/desktop/kokoriko-ui-window.swift` (window 
   - When the environment variable `BERTH_PANEL_PNG_DIR` is set, each test also writes `<state>.png` into that directory, so an agent or a human can look at the panel without opening it. Unset, nothing is written.
 - **Test seam.** (autopilot assumption) `StatusPanel` stays bound to `StatusModel`. `StatusModel` gets an internal initializer that takes a fixed `StatusState` and `now` and starts no watch and no tick. The existing `init()` keeps its behavior (it watches the daemon with `autoSpawn: false` and ticks every second). No debug flag in `berth-bar`, no other product code change.
 - **Out of scope.** Driving the popover or the Quit button on screen, dark appearance renders, and any change to the whackagent plugin.
+- **Found while coding: the status item is not the app's window.** (autopilot assumption, open for the user) On this Mac (macOS 27), the `berth-bar` status item is drawn by `MenuBarAgent`, another process. The `berth-bar` pid owns only its popover window, which stays off screen while the popover is closed. So `window-id` and `capture` by pid cannot reach the status item, and the two criteria about it cannot pass as written. The code was not bent to reach the item through another pid or a screen region, because the rule forbids both. `window-id` and `capture` address the pid's own on-screen windows, for example the popover once a human has opened it. `CLAUDE.md` says the status item label is proven by an Accessibility title read addressed by pid, or by a human. Recommended amendment: replace the two status item criteria with "the status item title, read by Accessibility on the pid, is empty with the daemon down".
 
 ## Acceptance criteria
 
@@ -48,8 +49,48 @@ Prior art: Kokoriko #155 ships `tools/desktop/kokoriko-ui-window.swift` (window 
 
 ## Implementation
 
+Brick 1, panel render tests:
+- `Sources/BerthBar/Status/StatusModel.swift`: new `init(state:now:)`, which starts no watch and no tick. `init()` is unchanged.
+- `Tests/BerthBarTests/Panel/StatusPanelRenderTests.swift` (new): renders `StatusPanel` with `NSHostingView` + `cacheDisplay(in:to:)` in the `.aqua` appearance with a fixed clock. Four tests: connecting, disconnected, live empty and live busy. Each asserts a non-empty image 620 pt wide. With `BERTH_PANEL_PNG_DIR` set, each writes `connecting.png`, `disconnected.png`, `live-empty.png` or `live-busy.png` there. The `ImageRenderer` fallback was not needed.
+
+Brick 2, desktop helper:
+- `tools/desktop/desk.swift` (new): a standalone script outside the package. `desk-state` prints one JSON line, with `null` when a value is absent. `window-id <pid>` prints the largest on-screen window the pid owns. `capture <pid> <out.png>` runs `screencapture -l <id> -o -x`. Exit codes: 0 ok, 1 no window or failure, 2 bad usage.
+
+Brick 3, written rule:
+- `CLAUDE.md`: new `## Desktop proofs` section.
+- `.whackagent/config.md`: one project note pointing to it.
+
+Build: `swift build` green. Tests: `swift test` 10 passed (6 menu bar label, 4 panel render).
+
 ## Review
 
+### validation (autopilot) — 2026-10-16
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: 1 finding open after 2 autofix rounds.
+
+Round 1 found 6 issues. Five were fixed by autofix; the critical one is open:
+- critical, correctness, **open**: the two criteria about the status item cannot pass on macOS 27. `MenuBarAgent` draws the status item, not a window of the `berth-bar` pid. Evidence: the user's running `berth-bar` owns one window only, the off-screen popover (layer 25, 646x207). The user decides how the criteria change; see `## Context / Decisions`. Autofix removed the false claim "with the popover closed, the window is the status item" from `CLAUDE.md`.
+- minor, correctness: a forced cast on the window bounds could trap. It now binds with `as? NSDictionary`.
+- minor, elegance: the manual loop with a `-1` sentinel is now `compactMap` + `max(by:)`.
+- minor, elegance: `desk-state` printed `0`, `""` or `.zero` for absent values. It now prints `null`.
+- minor, correctness: `capture` forwarded screencapture's raw status, and a thrown error trapped. Every failure now exits 1 with a message on stderr.
+- minor, style: the header comment repeated the usage. It is down to three lines.
+
+Round 2 found 1 new minor issue, fixed:
+- minor, correctness: `CLAUDE.md` stated "the status item is drawn by `MenuBarAgent`" for every macOS. It now says this was seen on macOS 27, and that on older macOS `window-id` may return the status item.
+
+Round 3: only the critical spec finding remains.
+
 ## Verification
+
+Runtime check by agent, with no mouse, keystroke or focus change. `BERTH_HOME=/tmp/bb5`, daemon down, no emulator.
+- ✅ `swift build` and `swift test` pass.
+- ✅ `CLAUDE.md` has `## Desktop proofs`, and `.whackagent/config.md` has the pointer line.
+- ✅ `desk-state` prints one JSON line, for example `{"cursor":{"x":…,"y":…},"frontmostName":"Terminal","frontmostPid":3100}`.
+- ❌ `window-id <pid>` on the background `berth-bar` printed nothing and exited 1: the pid has no on-screen window (see the open finding). On an on-screen window (Terminal, pid 3100) it printed `1469` and exited 0. For pid 1 (no window) it printed nothing and exited 1. Bad usage exits 2.
+- ❌ `capture` of the status item: not possible on macOS 27, for the same reason. `capture` was not run on another window.
+- ✅ The frontmost app (Google Chrome, pid 1466) did not change across the launch, `window-id`, `capture` and `kill <pid>`. Only the cursor moved, from the user's own work.
+- ✅ The 4 render tests pass. The PNGs show "connecting…"; "daemon not running" with its reason; "0/3 running · 0 waiting", "none running" and "empty"; and `emulator-5554 Pixel_8 leased claude#4242 demo 0:09 59m` plus `1 codex#4343 checkout Pixel_Tablet 0:05`, nothing truncated. Quit is drawn as a real button in each.
+- ✅ With the daemon down, `berth-bar` started no `daemon run` and created no socket. The status item title was not read: Accessibility was not available in the agent's shell.
 
 ## Feedback

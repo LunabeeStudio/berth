@@ -208,6 +208,7 @@ Edit frontmatter above to change behavior.
 
 - berth = Swift 6 CLI + daemon leasing Android emulators to parallel AI agents. Build `swift build`, test `swift test` (broker tested vs fake backend, no emulator).
 - Runtime checks on real emulators: set `BERTH_HOME` to SHORT dir (Unix socket path ≤ 104 bytes), pool only AVDs no human use, never stop/kill emulators berth didn't start.
+- Desktop proofs of `berth-bar` (no mouse, keyboard or focus taken): follow the `## Desktop proofs` section of `CLAUDE.md`.
 - Comments minimal: only complex algorithm or non-obvious business rule; no restating doc comments.
 
 ## Core rule — stop and ask

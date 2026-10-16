@@ -24,6 +24,11 @@ final class StatusModel {
         })
     }
 
+    init(state: StatusState, now: Date) {
+        self.state = state
+        self.now = now
+    }
+
     deinit {
         tasks.forEach { $0.cancel() }
     }
