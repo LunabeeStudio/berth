@@ -1,6 +1,6 @@
 ---
 issue: 11
-phase:
+phase: validated
 wiki: [[architecture]], [[cli]], [[release]]
 note: Blocks #13 (auto update reads the version and the asset names set here).
 created: 2026-10-16
@@ -43,8 +43,36 @@ Prior art:
 
 ## Implementation
 
+- Brick 1: `Sources/BerthCore/Version.swift` (`BerthVersion.current = "dev"`, shared contract with #13); `Berth.swift` `version:` reads it. `scripts/release/package.sh <X.Y.Z> <out>`: validates version (exit 64), resolves out dir from caller cwd, stamps `Version.swift`, builds `berth` + `berth-bar` release arm64, tars both at root, writes `.sha256`, restores `Version.swift` on exit (trap on a mktemp copy).
+- Decision taken while coding: the CLI version is now `dev`, so `PluginSyncTests` no longer ties the plugin version to it. The test checks that plugin.json and marketplace.json agree, and the workflow checks that the tag equals both. (autopilot assumption)
+- Brick 2: `.github/workflows/release.yml`, two jobs. `build` (macos-26, image default Xcode, `contents: read`, checkout `persist-credentials: false`) resolves the version (tag regex, plugin version match; `0.0.0` on PRs), runs `swift test` and `package.sh`, and uploads the artifact. `publish` (ubuntu-latest, tag only, `contents: write`) downloads it and runs `gh release create --generate-notes --verify-tag`. Actions are pinned to commit SHAs.
+- README Install = curl one-liner into `~/.local/bin`, "From source" subsection; Menu bar section runs `berth-bar` from PATH. `docs/RELEASING.md` = release flow; `.whackagent/config.md` `release.doc` points at it. `.gitignore` gets `dist/`.
+- Build ✅ · tests ✅ (all suites).
+
 ## Review
 
+### Round validation (autopilot) — 2026-10-16
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean after 1 autofix round.
+
+Fixed by autofix:
+- critical, correctness: `permissions` held an expression, which GitHub rejects. Split into `build` (read) and `publish` (write, tag only).
+- minor, correctness: actions pinned to SHAs; checkout `persist-credentials: false`.
+- minor, correctness: Xcode glob could pick a beta; the image default Xcode is used now.
+- minor, correctness: PR `paths` filter now includes `Version.swift`.
+- minor, correctness: `package.sh` resolved a relative out dir against the repo root.
+- minor, correctness: `dist/` added to `.gitignore`.
+- minor, structure: README Menu bar section still built from source.
+- minor, style: `PluginSyncTests` uses `#require`; unused `@testable import` removed.
+
 ## Verification
+
+- ✅ `swift build` → `berth --version` prints `dev`.
+- ✅ `package.sh 1.2.3 <dir>` → archive + `.sha256`; `shasum -a 256 -c` OK; working tree clean afterwards.
+- ✅ Extracted archive holds `berth` and `berth-bar`; `berth --version` prints `1.2.3`.
+- ✅ `package.sh` run from another cwd with a relative out dir writes there.
+- ✅ Tag check logic run locally: `v0.1.0` passes, `v0.2.0` fails (plugin version mismatch), `v1.2` fails (regex).
+- ⏳ PR run of the Release workflow on the runner: checked after push (see PR checks).
+- ❌ not run by agent: pushing a real tag creating a release (needs a human to tag).
 
 ## Feedback
