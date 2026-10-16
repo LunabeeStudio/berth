@@ -7,12 +7,6 @@ import Testing
 
 @Suite
 struct AutoUpdaterTests {
-    private final class Lines: Sendable {
-        private let storage: Mutex<[String]> = .init([])
-        var all: [String] { storage.withLock { $0 } }
-        func add(_ line: String) { storage.withLock { $0.append(line) } }
-    }
-
     @Test
     func `installs a newer release and logs it`() async {
         let source: StubUpdateSource = .newer()
@@ -53,11 +47,21 @@ struct AutoUpdaterTests {
 
     @Test
     func `run checks again every interval`() async throws {
-        let source: StubUpdateSource = .init(.success(.upToDate(current: "1.0.0", latest: .init(major: 1, minor: 0, patch: 0))))
+        let source: StubUpdateSource = .init(.success(.upToDate(current: .init(major: 1, minor: 0, patch: 0), latest: .init(major: 1, minor: 0, patch: 0))))
         let updater: AutoUpdater = .init(source: source, autoUpdate: true, currentVersion: "1.0.0", delay: .milliseconds(1), interval: .milliseconds(10))
 
         let task: Task<Void, Never> = Task { await updater.run() }
         try await eventually { source.checks >= 3 }
         task.cancel()
+    }
+}
+
+private extension AutoUpdaterTests {
+    final class Lines: Sendable {
+        private let storage: Mutex<[String]> = .init([])
+
+        var all: [String] { storage.withLock { $0 } }
+
+        func add(_ line: String) { storage.withLock { $0.append(line) } }
     }
 }

@@ -35,11 +35,11 @@ struct AutoUpdater: Sendable {
     func checkOnce() async {
         guard isEnabled else { return }
         do {
-            guard case let .available(current, release, version) = try await source.check() else { return }
+            guard case let .available(current, latest, release) = try await source.check() else { return }
             try await source.install(release)
-            log("auto update: installed \(current) → \(version)")
+            log("auto update: installed \(current) → \(latest)")
         } catch {
-            log("auto update failed: \((error as? UpdateError)?.description ?? error.localizedDescription)")
+            log("auto update failed: \(error.localizedDescription)")
         }
     }
 }

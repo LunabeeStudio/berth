@@ -3,12 +3,6 @@ import Foundation
 import Synchronization
 
 final class StubUpdateSource: UpdateSource {
-    private struct State {
-        var result: Result<UpdateCheck, any Error>
-        var installs: Int = 0
-        var checks: Int = 0
-    }
-
     private let state: Mutex<State>
 
     var installs: Int { state.withLock { $0.installs } }
@@ -16,6 +10,11 @@ final class StubUpdateSource: UpdateSource {
 
     init(_ result: Result<UpdateCheck, any Error>) {
         state = .init(.init(result: result))
+    }
+
+    static func newer() -> StubUpdateSource {
+        let release: Release = try! JSONDecoder().decode(Release.self, from: Data(#"{"tagName":"v2.0.0","assets":[]}"#.utf8))
+        return .init(.success(.available(current: .init(major: 1, minor: 0, patch: 0), latest: .init(major: 2, minor: 0, patch: 0), release: release)))
     }
 
     func check() async throws -> UpdateCheck {
@@ -28,9 +27,12 @@ final class StubUpdateSource: UpdateSource {
     func install(_ release: Release) async throws {
         state.withLock { $0.installs += 1 }
     }
+}
 
-    static func newer() -> StubUpdateSource {
-        let release: Release = try! JSONDecoder().decode(Release.self, from: Data(#"{"tagName":"v2.0.0","assets":[]}"#.utf8))
-        return .init(.success(.available(current: "1.0.0", release: release, version: .init(major: 2, minor: 0, patch: 0))))
+private extension StubUpdateSource {
+    struct State {
+        var result: Result<UpdateCheck, any Error>
+        var installs: Int = 0
+        var checks: Int = 0
     }
 }

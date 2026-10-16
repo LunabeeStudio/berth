@@ -36,20 +36,23 @@ public enum Daemon {
         let broker = Broker(config: config, backend: backend, store: StateStore(url: Paths.state))
         await broker.restore()
 
-        let executable = LaunchAgent.currentExecutablePath()
-        let watch = ExecutableWatch(path: executable)
+        let executable: String = LaunchAgent.currentExecutablePath()
         Task {
+            var monitor: ReexecMonitor = .init(
+                watch: .init(path: executable),
+                verify: { await Reexec.isLoadable(path: executable) },
+                performIfIdle: { await broker.performIfIdle($0) },
+                exec: { Reexec.run(path: executable, arguments: CommandLine.arguments) },
+                log: { Log.info($0) }
+            )
             while true {
                 try? await Task.sleep(for: reapInterval)
                 await broker.reap()
-                if watch.hasChanged(), await broker.isIdle {
-                    Log.info("re-exec after binary change")
-                    Reexec.run(path: executable, arguments: CommandLine.arguments)
-                }
+                await monitor.poll()
             }
         }
 
-        let autoUpdater = AutoUpdater(source: Updater(executablePath: executable), autoUpdate: config.autoUpdate)
+        let autoUpdater: AutoUpdater = .init(source: Updater(executablePath: executable), autoUpdate: config.autoUpdate)
         Task { await autoUpdater.run() }
 
         let server = Server(broker: broker) {

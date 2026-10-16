@@ -12,12 +12,12 @@ struct UpdaterTests {
 
         let check: UpdateCheck = try await fixture.updater(current: "0.1.0").check()
 
-        guard case let .available(current, _, version) = check else {
+        guard case let .available(current, latest, _) = check else {
             Issue.record("expected available, got \(check)")
             return
         }
-        #expect(current == "0.1.0")
-        #expect(version.description == "0.2.0")
+        #expect(current.description == "0.1.0")
+        #expect(latest.description == "0.2.0")
     }
 
     @Test
@@ -49,7 +49,7 @@ struct UpdaterTests {
         let fixture: UpdateFixture = try await .init(tag: "v0.2.0")
         defer { fixture.cleanUp() }
         let updater: Updater = fixture.updater(current: "0.1.0")
-        guard case let .available(_, release, _) = try await updater.check() else {
+        guard case let .available(_, _, release) = try await updater.check() else {
             Issue.record("expected available")
             return
         }
@@ -69,7 +69,7 @@ struct UpdaterTests {
         let fixture: UpdateFixture = try await .init(tag: "v0.2.0", withBar: false)
         defer { fixture.cleanUp() }
         let updater: Updater = fixture.updater(current: "0.1.0")
-        guard case let .available(_, release, _) = try await updater.check() else {
+        guard case let .available(_, _, release) = try await updater.check() else {
             Issue.record("expected available")
             return
         }
@@ -85,7 +85,7 @@ struct UpdaterTests {
         let fixture: UpdateFixture = try await .init(tag: "v0.2.0", corruptChecksum: true)
         defer { fixture.cleanUp() }
         let updater: Updater = fixture.updater(current: "0.1.0")
-        guard case let .available(_, release, _) = try await updater.check() else {
+        guard case let .available(_, _, release) = try await updater.check() else {
             Issue.record("expected available")
             return
         }
@@ -105,7 +105,7 @@ struct UpdaterTests {
         let fixture: UpdateFixture = try await .init(tag: "v0.2.0")
         defer { fixture.cleanUp() }
         let updater: Updater = fixture.updater(current: "0.1.0")
-        guard case let .available(_, release, _) = try await updater.check() else {
+        guard case let .available(_, _, release) = try await updater.check() else {
             Issue.record("expected available")
             return
         }

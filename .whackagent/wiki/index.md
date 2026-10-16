@@ -11,6 +11,7 @@ Living knowledge base for project. Pages link to each other and to tasks via `[[
 - [[cli]] — commands, exit codes, owner detection, TUI
 - [[ios-backend]] — berth-owned simulators, erase+boot reset, routing
 - [[release]] — tag → GitHub release, version stamping, asset names
+- [[update]] — `berth update`, daemon auto update, same-pid re-exec
 
 ## How to read
 

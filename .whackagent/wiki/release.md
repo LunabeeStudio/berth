@@ -8,3 +8,4 @@ GitHub Releases = install channel. Flow for humans: `docs/RELEASING.md`.
 - **Assets** (stable names → `releases/latest/download/<asset>` permalink, README + auto update rely on it): `berth-macos-arm64.tar.gz` (`berth` + `berth-bar` at root), `berth-macos-arm64.tar.gz.sha256` (`shasum -a 256`, relative name → `shasum -c` works).
 - arm64 only. No signing/notarization: curl download has no quarantine xattr, ad-hoc linker signature runs.
 - Actions pinned to commit SHAs, checkout `persist-credentials: false`.
+- Consumer: [[update]] (feed, asset names, version compare).

@@ -11,32 +11,53 @@ struct ExecutableWatchTests {
         return url
     }
 
+    private func poll(_ watch: inout ExecutableWatch) -> Bool {
+        watch.hasSettledChange()
+    }
+
     @Test
     func `unchanged file is not reported`() throws {
         let url: URL = try makeFile("a")
         defer { try? FileManager.default.removeItem(at: url) }
+        var watch: ExecutableWatch = .init(path: url.path)
 
-        #expect(!ExecutableWatch(path: url.path).hasChanged())
+        #expect(!poll(&watch))
+        #expect(!poll(&watch))
     }
 
     @Test
-    func `file replaced by rename is reported`() throws {
+    func `replaced file is reported on the second identical poll`() throws {
         let url: URL = try makeFile("a")
         let replacement: URL = try makeFile("bb")
         defer { try? FileManager.default.removeItem(at: url); try? FileManager.default.removeItem(at: replacement) }
-        let watch: ExecutableWatch = .init(path: url.path)
+        var watch: ExecutableWatch = .init(path: url.path)
 
         #expect(rename(replacement.path, url.path) == 0)
 
-        #expect(watch.hasChanged())
+        #expect(!poll(&watch))
+        #expect(poll(&watch))
+    }
+
+    @Test
+    func `file still being written is not reported`() throws {
+        let url: URL = try makeFile("a")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var watch: ExecutableWatch = .init(path: url.path)
+
+        try Data("bb".utf8).write(to: url)
+        #expect(!poll(&watch))
+        try Data("bbbbbb".utf8).write(to: url)
+        #expect(!poll(&watch))
+        #expect(poll(&watch))
     }
 
     @Test
     func `vanished file is not reported`() throws {
         let url: URL = try makeFile("a")
-        let watch: ExecutableWatch = .init(path: url.path)
+        var watch: ExecutableWatch = .init(path: url.path)
         try FileManager.default.removeItem(at: url)
 
-        #expect(!watch.hasChanged())
+        #expect(!poll(&watch))
+        #expect(!poll(&watch))
     }
 }

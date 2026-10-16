@@ -5,7 +5,7 @@ struct Installer: Sendable {
     let executablePath: String
 
     func install(_ release: Release) async throws {
-        let executable: URL = URL(fileURLWithPath: executablePath)
+        let executable: URL = .init(fileURLWithPath: executablePath)
         let directory: URL = executable.deletingLastPathComponent()
         guard FileManager.default.isWritableFile(atPath: directory.path) else {
             throw UpdateError.notWritable(directory.path)
@@ -21,8 +21,8 @@ struct Installer: Sendable {
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: staging) }
 
-        let archiveData: Data = try await URLSession.shared.data(for: .uncached(archive.browserDownloadUrl)).0
-        let checksumData: Data = try await URLSession.shared.data(for: .uncached(checksum.browserDownloadUrl)).0
+        let archiveData: Data = try await Download.data(from: archive.browserDownloadUrl)
+        let checksumData: Data = try await Download.data(from: checksum.browserDownloadUrl)
         try verify(archiveData, against: checksumData)
 
         let archiveFile: URL = staging.appending(path: Updater.archiveName)

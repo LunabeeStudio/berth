@@ -1,4 +1,4 @@
 public enum UpdateCheck: Sendable {
-    case upToDate(current: String, latest: SemanticVersion)
-    case available(current: String, release: Release, version: SemanticVersion)
+    case upToDate(current: SemanticVersion, latest: SemanticVersion)
+    case available(current: SemanticVersion, latest: SemanticVersion, release: Release)
 }

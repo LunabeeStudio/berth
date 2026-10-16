@@ -7,11 +7,6 @@ public struct Release: Codable, Sendable {
 
     public var version: SemanticVersion? { SemanticVersion(tagName) }
 
-    public struct Asset: Codable, Sendable {
-        public let name: String
-        public let browserDownloadUrl: URL
-    }
-
     public func asset(named name: String) -> Asset? {
         assets.first { $0.name == name }
     }
