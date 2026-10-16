@@ -1,6 +1,6 @@
 # CLI
 
-ArgumentParser `AsyncParsableCommand`s in `Sources/berth/`. Root `Berth` (Berth.swift).
+ArgumentParser `AsyncParsableCommand`s in `Sources/berth/`. Root `Berth` (Berth.swift). `--version` = `BerthVersion.current` (`dev` local, stamped in releases → [[release]]).
 
 | Command | Notes |
 |---|---|

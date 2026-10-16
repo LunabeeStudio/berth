@@ -7,7 +7,7 @@ struct Berth: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "berth",
         abstract: "Lease Android emulators and iOS simulators to parallel AI agents without collisions.",
-        version: "0.1.0",
+        version: BerthVersion.current,
         subcommands: [
             Claim.self, Release.self, Renew.self, Run.self,
             Status.self, Top.self, Prepare.self, StopAll.self, DaemonCommand.self, Guard.self,

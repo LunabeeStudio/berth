@@ -1,8 +1,6 @@
 import Foundation
 import Testing
 
-@testable import berth
-
 @Suite
 struct PluginSyncTests {
     private static let root: URL = .init(fileURLWithPath: #filePath)
@@ -29,9 +27,9 @@ struct PluginSyncTests {
     }
 
     @Test
-    func `plugin and marketplace versions match the CLI`() throws {
-        let cli: String? = Berth.configuration.version
-        #expect(try Self.json("claude-plugin/.claude-plugin/plugin.json")?["version"] as? String == cli)
-        #expect((try Self.json(".claude-plugin/marketplace.json")?["plugins"] as? [[String: Any]])?.first?["version"] as? String == cli)
+    func `plugin and marketplace versions match`() throws {
+        let plugin: String = try #require(try Self.json("claude-plugin/.claude-plugin/plugin.json")?["version"] as? String)
+        let marketplace: String? = (try Self.json(".claude-plugin/marketplace.json")?["plugins"] as? [[String: Any]])?.first?["version"] as? String
+        #expect(marketplace == plugin)
     }
 }
