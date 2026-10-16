@@ -135,6 +135,11 @@ public actor Broker {
         if dirty { schedule() }
     }
 
+    /// No lease, no waiting claim and no slot in transition: safe to replace the process.
+    public var isIdle: Bool {
+        waiters.isEmpty && slots.values.allSatisfy { $0.state == .free }
+    }
+
     public func snapshot() -> StateSnapshot {
         StateSnapshot(
             slots: slots.values.sorted { $0.serial.numericallyPrecedes($1.serial) },

@@ -1,6 +1,6 @@
 ---
 issue: 13
-phase:
+phase: in-progress
 wiki: [[architecture]], [[cli]], [[release]]
 note: Depends on #11 (version in `BerthCore/Version.swift`, release asset names).
 created: 2026-10-16
