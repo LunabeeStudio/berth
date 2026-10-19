@@ -1,6 +1,6 @@
 ---
 issue: 18
-phase:
+phase: validated
 wiki: [[architecture]]
 note:
 created: 2026-10-19
@@ -32,8 +32,29 @@ Cause, from the code: `StatusPanel` draws no background of its own, so the `NSPo
 
 ## Implementation
 
+Brick 1 — opaque panel + state dot:
+- `Sources/BerthBar/Panel/StatusPanel.swift`: `.background(Color(nsColor: .windowBackgroundColor))` after `.frame(width: 620)`, so the padding is covered too.
+- `Sources/BerthBar/Panel/EmulatorRow.swift`: state cell = 8 pt `Circle` filled with `slot.state.color`, then the state name in primary text color; column width still 70. `SlotState+Color.swift` unchanged.
+- `Tests/BerthBarTests/Panel/StatusPanelRenderTests.swift`: `render` takes an `appearance` (default `.aqua`); `expectOpaque` counts pixels with alpha ≠ 1; parameterized test `panel is opaque in every appearance` over light (`live-busy`) and dark (`live-busy-dark`), size + opacity checked. It replaces the former light live-busy render test.
+
+Build: `swift build` green. Tests: `swift test` green, 0 failures.
+
 ## Review
 
+### validation (autopilot) — 2026-10-19
+
+Round 1: 3 minor findings, all in the render test — structure: unused `appearance` parameter on `writePNG`; elegance: light opaque test overwrote the `live-busy` PNG and skipped the size check; elegance: nested loops with a mutable counter in `expectOpaque`.
+Autofix: parameter removed; one parameterized test for both appearances; `reduce` + `count(where:)`.
+Round 2: 3 fixed; 1 new minor (structure): the old light live-busy test duplicated the parameterized `.aqua` case. Autofix: old test dropped, light argument named `live-busy`.
+Round 3: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean.
+
 ## Verification
+
+- ✅ `swift build` + `swift test` pass.
+- ✅ Opacity assertion failed before the fix (transparent background), passes after, light and dark.
+- ✅ Render PNGs (`BERTH_PANEL_PNG_DIR`): light = light opaque background, dark readable text, cyan dot + "leased" in primary color; dark = near-black opaque background, white text, cyan dot visible.
+- ✅ Width 620 check passes; columns, texts and fonts unchanged.
+- ✅ Own `.build/debug/berth-bar` (`BERTH_HOME=/tmp/bb18`) stayed up 2 s, stopped by pid; `desk-state` identical before and after (no input sent, frontmost app unchanged).
+- Not run by agent (needs a click on the menu bar item): real popover over a dark window, light and dark mode.
 
 ## Feedback

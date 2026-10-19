@@ -25,6 +25,7 @@ struct StatusPanel: View {
         }
         .padding(12)
         .frame(width: 620)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     @ViewBuilder
