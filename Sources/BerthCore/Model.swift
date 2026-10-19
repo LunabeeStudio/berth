@@ -60,6 +60,7 @@ public struct Slot: Codable, Sendable, Identifiable {
     public var windowed: Bool
 
     public var id: String { serial }
+    public var isManuallyLeased: Bool { state == .leased && lease?.manual == true }
 
     public init(
         serial: String,

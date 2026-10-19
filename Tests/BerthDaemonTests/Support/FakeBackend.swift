@@ -18,8 +18,8 @@ final class FakeBackend: DeviceBackend {
         var failingModels: Set<String> = []
         var failReset = false
         var holdResets = false
-        var holdLaunches = false
-        var holdShutdowns = false
+        var holdLaunches: Bool = false
+        var holdShutdowns: Bool = false
         var unavailable: [String: String] = [:]
         var resets: [String] = []
         var resetWindowed: [Bool] = []

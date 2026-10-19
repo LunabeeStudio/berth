@@ -29,7 +29,7 @@ struct BrokerWindowedTests {
     }
 
     @Test
-    func `headless claim never gets a windowed slot`() async throws {
+    func `headless claim never gets a manually leased slot`() async throws {
         let h: Harness = .init(maxRunning: 1)
         let windowed: Client = await h.claim(model: "Pixel", pid: 1, windowed: true)
         try await eventually { windowed.grant != nil }
@@ -43,7 +43,7 @@ struct BrokerWindowedTests {
     }
 
     @Test
-    func `dead owner and past expiry do not reclaim a windowed lease`() async throws {
+    func `dead owner and past expiry do not reclaim a manual lease`() async throws {
         let h: Harness = .init()
         let windowed: Client = await h.claim(model: "Pixel", pid: 42, windowed: true)
         try await eventually { windowed.grant != nil }
@@ -292,7 +292,7 @@ struct BrokerWindowedTests {
     }
 
     @Test
-    func `renew refuses a windowed lease`() async throws {
+    func `renew refuses a manual lease`() async throws {
         let h: Harness = .init()
         let windowed: Client = await h.claim(model: "Pixel", windowed: true)
         try await eventually { windowed.grant != nil }
@@ -308,7 +308,7 @@ struct BrokerWindowedTests {
     }
 
     @Test
-    func `eviction never stops a windowed slot`() async throws {
+    func `eviction never stops a manually leased slot`() async throws {
         let h: Harness = .init(maxRunning: 1, pool: [PoolEntry(name: "A", maxInstances: 1), PoolEntry(name: "B", maxInstances: 1)])
         let windowed: Client = await h.claim(model: "A", pid: 1, windowed: true)
         try await eventually { windowed.grant != nil }
@@ -319,6 +319,19 @@ struct BrokerWindowedTests {
 
         #expect(other.grant == nil)
         #expect(h.backend.shutdowns.isEmpty)
+    }
+
+    @Test
+    func `eviction stops a free windowed slot`() async throws {
+        let h: Harness = .init(maxRunning: 1, pool: [PoolEntry(name: "A", maxInstances: 1), PoolEntry(name: "B", maxInstances: 1)])
+        let windowed: Client = await h.claim(model: "A", pid: 1, windowed: true)
+        try await eventually { windowed.grant != nil }
+        _ = await h.broker.release("emulator-5554")
+
+        let other: Client = await h.claim(model: "B", pid: 2)
+        try await eventually { other.grant != nil }
+
+        #expect(h.backend.shutdowns == ["emulator-5554"])
     }
 
     @Test
@@ -336,7 +349,7 @@ struct BrokerWindowedTests {
     }
 
     @Test
-    func `idle check ignores a leased windowed slot`() async throws {
+    func `idle check ignores a manual lease`() async throws {
         let h: Harness = .init()
         let windowed: Client = await h.claim(model: "Pixel", windowed: true)
         try await eventually { windowed.grant != nil }

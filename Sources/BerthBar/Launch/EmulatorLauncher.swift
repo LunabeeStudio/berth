@@ -6,6 +6,11 @@ import Observation
 @MainActor
 final class EmulatorLauncher {
     private(set) var error: String?
+    private let actions: any DaemonActions
+
+    init(actions: any DaemonActions = DaemonClientActions()) {
+        self.actions = actions
+    }
 
     nonisolated static var owner: Owner {
         let pid: Int32 = getpid()
@@ -16,21 +21,24 @@ final class EmulatorLauncher {
         ClaimRequest(model: model, platform: .android, ttl: nil, label: "you", owner: owner, windowed: true)
     }
 
-    func launch(model: String) {
+    @discardableResult
+    func launch(model: String) -> Task<Void, Never> {
         error = nil
-        Task { [weak self] in
+        let request: ClaimRequest = Self.request(model: model, owner: Self.owner)
+        return Task { [weak self, actions] in
             do {
-                _ = try await DaemonClient.claim(Self.request(model: model, owner: Self.owner), autoSpawn: false)
+                try await actions.claim(request)
             } catch {
                 self?.error = "\(error)"
             }
         }
     }
 
-    func release(serial: String) {
-        Task { [weak self] in
+    @discardableResult
+    func release(serial: String) -> Task<Void, Never> {
+        Task { [weak self, actions] in
             do {
-                try await DaemonClient.call(.release(target: serial), autoSpawn: false)
+                try await actions.release(serial: serial)
             } catch {
                 self?.error = "\(error)"
             }

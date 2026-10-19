@@ -1,6 +1,6 @@
 ---
 issue: 19
-phase: review
+phase: validated
 wiki: [[architecture]], [[broker]], [[android-backend]], [[cli]]
 note:
 created: 2026-10-19
@@ -90,6 +90,13 @@ Round 2: 11 fixed; 1 new minor (correctness): no-room windowed waiter consumed a
 Round 3: fixed; 1 new minor (style): force-unwrap in test. Autofix: `#require`.
 Round 4: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean.
 
+### validation — 2026-10-19 (user green light, `/wa-validate 19`)
+
+Scope: whole ticket range (incl. feedback round 1, not reviewed before).
+Round 1: 9 minor, no major. Correctness: no test for eviction of a free windowed slot. Structure: manual-lease predicate repeated 8× in 3 targets; `EmulatorLauncher` hard-wired to static `DaemonClient` (launch/release/error untestable). Elegance: ternary-to-nil in `StatusRenderer`. Style: implicit types (`Broker`, `Harness`, `FakeBackend`), test names still saying "windowed" for manual-lease rules, Lease test in Slot suite, `lines(windowed:)` toggling manual.
+Autofix: `Slot.isManuallyLeased` used everywhere; `DaemonActions` protocol + `DaemonClientActions` injected into `EmulatorLauncher` (launch/release return discardable `Task`), `StubActions` tests for refused claim / failed release / cleared error; `remaining(_:)` with guard; eviction test; renames; `ModelDecodingTests`.
+Round 2: 9 fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean. Autofix touched code after the user's test: retest needed before ready.
+
 ## Verification
 
 - ✅ `swift build` + `swift test` pass.
@@ -100,6 +107,7 @@ Round 4: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure �
 - ✅ Render `live-windowed.png`: Release button in remaining column, Launch emulator menu, width 620, columns aligned.
 - ✅ Own `berth-bar` launched 2 s, stopped by pid; `desk-state` unchanged (no input sent).
 - Round 1 (feedback): build ✅, full `swift test` ✅; headless claim / run / release / stop-all on real Pixel_9 ✅; render: Release button on the manual-lease row only ✅.
+- Validation autofix: build ✅, full `swift test` ✅ (37 + 77 + 29 + 19); render `live-windowed` unchanged ✅; headless `berth run` + `stop-all` on real Pixel_9 ✅.
 - Not run by agent (window may take focus; needs clicks): real windowed boot, Launch menu entries, Release click, closing the window, daemon restart re-adopting a windowed emulator, `berth claim` timeout path.
 
 ## Feedback

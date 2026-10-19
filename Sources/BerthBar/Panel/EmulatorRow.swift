@@ -26,7 +26,7 @@ struct EmulatorRow: View {
 
     @ViewBuilder
     private var remaining: some View {
-        if slot.lease?.manual == true {
+        if slot.isManuallyLeased {
             Button("Release") { launcher.release(serial: slot.serial) }
                 .controlSize(.small)
         } else {

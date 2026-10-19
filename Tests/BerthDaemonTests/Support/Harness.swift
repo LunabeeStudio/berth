@@ -24,7 +24,7 @@ struct Harness {
     @discardableResult
     func claim(model: String? = nil, platform: Platform? = nil, pid: Int32 = 100, ttl: Int? = nil, windowed: Bool? = nil, acknowledge: Bool = true) async -> Client {
         let client = Client()
-        let request = ClaimRequest(
+        let request: ClaimRequest = .init(
             model: model,
             platform: platform,
             ttl: ttl,

@@ -98,7 +98,7 @@ public actor Broker {
         guard let slot = resolve(target) else { return .failure("no emulator matches '\(target)'") }
         guard slot.state == .leased, let lease = slot.lease else { return .failure("\(slot.serial) is not leased (\(slot.state.rawValue))") }
         Log.info("\(slot.serial): released by \(lease.owner.display)")
-        if lease.manual {
+        if slot.isManuallyLeased {
             slots[slot.serial]?.state = .free
             slots[slot.serial]?.stateSince = now()
             slots[slot.serial]?.lease = nil
@@ -111,7 +111,7 @@ public actor Broker {
 
     public func renew(_ target: String, ttl: Int?) -> Event {
         guard let slot = resolve(target), slot.state == .leased, slot.lease != nil else { return .failure("no leased emulator matches '\(target)'") }
-        guard slot.lease?.manual != true else { return .failure("\(slot.serial) is yours from the menu bar and never expires") }
+        guard !slot.isManuallyLeased else { return .failure("\(slot.serial) is yours from the menu bar and never expires") }
         let expiry = now().addingTimeInterval(TimeInterval(ttl ?? config.defaultTTLSeconds))
         slots[slot.serial]?.lease?.expiresAt = expiry
         changed()
@@ -127,7 +127,7 @@ public actor Broker {
     public func stopAll() -> Event {
         for waiter in waiters { waiter.sink.yield(.failure("all emulators were stopped by `berth stop-all`")) }
         waiters.removeAll()
-        let serials = slots.values.filter { !($0.state == .leased && $0.lease?.manual == true) }.map(\.serial).sorted { $0.numericallyPrecedes($1) }
+        let serials: [String] = slots.values.filter { !$0.isManuallyLeased }.map(\.serial).sorted { $0.numericallyPrecedes($1) }
         for serial in serials { beginStop(serial, reason: "stop-all") }
         changed()
         return .ok(serials.isEmpty ? "nothing running" : "stopping \(serials.joined(separator: ", "))")
@@ -148,7 +148,7 @@ public actor Broker {
             guard
                 let slot = slots.values.first(where: { $0.lease?.id == leaseID }),
                 slot.lease?.acknowledged == false,
-                slot.lease?.manual != true
+                !slot.isManuallyLeased
             else { continue }
             Log.info("\(slot.serial): client left before acknowledging the grant")
             beginReset(slot.serial)
@@ -218,7 +218,7 @@ public actor Broker {
             }
         }
 
-        for slot in slots.values where slot.state == .leased && slot.lease?.manual != true {
+        for slot in slots.values where slot.state == .leased && !slot.isManuallyLeased {
             guard let lease = slot.lease else { continue }
             if !ownerAlive(lease.owner) {
                 Log.info("\(slot.serial): owner \(lease.owner.display) is gone, reclaiming")
@@ -249,7 +249,7 @@ public actor Broker {
 
     /// No agent lease, no waiting claim and no slot in transition: safe to replace the process. A manually leased slot does not count.
     private var isIdle: Bool {
-        waiters.isEmpty && slots.values.allSatisfy { $0.state == .free || ($0.state == .leased && $0.lease?.manual == true) }
+        waiters.isEmpty && slots.values.allSatisfy { $0.state == .free || $0.isManuallyLeased }
     }
 
     private func schedule() {

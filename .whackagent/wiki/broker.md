@@ -23,14 +23,14 @@ Model must be pool entry of request platform, else "not in the pool". Pool has n
 - `release`/`renew`/`stop` accept serial or lease id.
 
 ## Windowed slots (#19)
-`ClaimRequest.windowed` (nil = false) → `Slot.windowed` (persisted; old `state.json` → false). Human's emulator from `berth-bar`.
-- Claim: needs model, Android pool entry, else failure "windowed launch needs an Android pool AVD".
-- `matches` requires `slot.windowed == request.isWindowed` → windowed waiter only gets slot booted windowed for it; headless never gets windowed.
-- In limits (`maxRunning`, `maxInstances`). Waiter w/o instance room → takes own model's in-flight stop, else stops oldest free slot of own model, else waits — never eats other model's pending stop.
-- Lease `expiresAt = .distantFuture`; reap never reclaims (dead owner, expiry); `renew` refused; unacked on disconnect → kept.
-- `release` → **forget**: slot dropped, no shutdown/reset, serial → `externalSerials` (never reused/touched).
-- `stopAll` skips leased windowed; explicit `stop` stops it. Booting/free windowed w/o waiter → stopped (orphan). Vanish → stopped as usual.
-- `isIdle` ignores leased windowed (self-update not blocked).
+Two notions. `Slot.windowed` = boot mode (window, kept for slot life). `Lease.manual` = lease granted to windowed claim from `berth-bar` (user's own). Both persisted, old `state.json` → false. `Slot.isManuallyLeased` = leased + manual.
+- Claim `windowed: true`: needs model, Android pool entry, else failure "windowed launch needs an Android pool AVD".
+- Matching: windowed request → windowed slot only (reuses free windowed of its model). Headless request → prefers headless, may take free windowed, never upcoming (booting/resetting) windowed. Windowed waiter of model has priority on free windowed slot.
+- In limits (`maxRunning`, `maxInstances`). Windowed waiter w/o instance room → takes own model's in-flight stop, else stops oldest free slot of own model, else waits — never eats other model's pending stop.
+- Manual lease: `expiresAt = .distantFuture`; reap never reclaims (dead owner, expiry); `renew` refused; unacked on disconnect → kept; `stopAll` skips; `isIdle` ignores (self-update not blocked). Explicit `stop` stops it.
+- `release` manual → slot `free` at once, **no reset**: same emulator, window + state kept, any claim takes it as is.
+- Agent lease on windowed slot = normal lease (TTL, owner reclaim); release/reclaim → reset by restart, relaunched windowed (`reset(…, windowed:)`).
+- Free windowed = normal free slot: idle stop, eviction, `stopAll`. Launcher left mid-boot → slot just ends free. Vanish → stopped as usual.
 
 ## Reap (every 5 s)
 - `liveSerials` from adb; free/leased slot missing 3 ticks (or pid dead + missing) → stop.

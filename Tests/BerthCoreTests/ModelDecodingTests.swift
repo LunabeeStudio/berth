@@ -4,7 +4,7 @@ import Testing
 @testable import BerthCore
 
 @Suite
-struct SlotDecodingTests {
+struct ModelDecodingTests {
     @Test
     func `a slot saved before windowed existed decodes as headless`() throws {
         let json: String = #"{"serial":"emulator-5554","model":"Pixel","state":"free","stateSince":0,"generation":1}"#
