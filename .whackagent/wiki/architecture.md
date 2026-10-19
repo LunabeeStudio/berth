@@ -29,6 +29,7 @@ berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
 - **Paths**: `BERTH_HOME` relocates config/state/socket/logs (default `~/Library/Application Support/berth`, logs `~/Library/Logs/berth`). Socket path ≤ 104 bytes.
 - **Shell output → temp files, not pipes**: adb may fork server inheriting pipe → read never EOF.
 - **Login items = launchd agents, not `SMAppService`**: `berth-bar` bare executable, no `.app` bundle. Daemon `com.berth.daemon` (`berth daemon install`, KeepAlive, bootstrap now). Bar `com.berth.bar` (panel checkbox, RunAtLoad only, no KeepAlive → Quit sticks; no bootstrap/bootout → no 2nd instance, no self-kill). Checkbox on ⇔ plist exists. Plist keeps binary path + `BERTH_HOME` from when enabled. → #8
+- **Panel opaque**: `StatusPanel` fills `windowBackgroundColor`; glass `NSPopover` took tint of window behind → unreadable over dark windows. Slot state = dot in state color + primary-color name (yellow/green/cyan text < 2.5:1 on light). Render test asserts full opacity, light + dark. → #18
 - Emulators spawned w/ `POSIX_SPAWN_CLOEXEC_DEFAULT` → no inherited daemon socket fds.
 
 ## Extending
