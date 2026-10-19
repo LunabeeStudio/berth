@@ -22,6 +22,16 @@ Model must be pool entry of request platform, else "not in the pool". Pool has n
 - Reclaimed (→ reset) when: owner dead, TTL expired, client disconnected before `ack`.
 - `release`/`renew`/`stop` accept serial or lease id.
 
+## Windowed slots (#19)
+`ClaimRequest.windowed` (nil = false) → `Slot.windowed` (persisted; old `state.json` → false). Human's emulator from `berth-bar`.
+- Claim: needs model, Android pool entry, else failure "windowed launch needs an Android pool AVD".
+- `matches` requires `slot.windowed == request.isWindowed` → windowed waiter only gets slot booted windowed for it; headless never gets windowed.
+- In limits (`maxRunning`, `maxInstances`). Waiter w/o instance room → takes own model's in-flight stop, else stops oldest free slot of own model, else waits — never eats other model's pending stop.
+- Lease `expiresAt = .distantFuture`; reap never reclaims (dead owner, expiry); `renew` refused; unacked on disconnect → kept.
+- `release` → **forget**: slot dropped, no shutdown/reset, serial → `externalSerials` (never reused/touched).
+- `stopAll` skips leased windowed; explicit `stop` stops it. Booting/free windowed w/o waiter → stopped (orphan). Vanish → stopped as usual.
+- `isIdle` ignores leased windowed (self-update not blocked).
+
 ## Reap (every 5 s)
 - `liveSerials` from adb; free/leased slot missing 3 ticks (or pid dead + missing) → stop.
 - Dead owners / expired leases → reset; dead-owner waiters → failure.
@@ -31,4 +41,4 @@ Model must be pool entry of request platform, else "not in the pool". Pool has n
 - Boot fail ×3 for model → model "broken" 10 min, its waiters failed (any-waiters of same platform failed only if all its models broken or unavailable). Messages name device kind (AVD / simulator).
 - **Orphan race**: stop (`stop-all`, eviction) while boot/reset in flight → task later brings device up for dead slot. `discardOrphan` installs fresh-generation `.stopping` slot + `startShutdown` → serial held until shut down, never one newer slot owns.
 - Reset fail → stop slot (next boot equally clean, see [[android-backend]]).
-- `stopAll` fails all waiters + stops every slot.
+- `stopAll` fails all waiters + stops every slot except leased windowed.

@@ -28,6 +28,24 @@ struct StatusPanelRenderTests {
         return .live(.mock(slots: [slot], queue: [waiter], generatedAt: now))
     }
 
+    private static func windowed() -> StatusState {
+        let lease: Lease = .mock(
+            owner: .mock(pid: 99, name: "berth-bar"),
+            label: "you",
+            grantedAt: now.addingTimeInterval(-120),
+            expiresAt: .distantFuture
+        )
+        let own: Slot = .mock(serial: "emulator-5556", model: "Pixel_9", state: .leased, lease: lease, windowed: true)
+        let agent: Slot = .mock(
+            serial: "emulator-5554",
+            model: "Pixel_8",
+            state: .leased,
+            lease: .mock(owner: .mock(pid: 4242, name: "claude"), label: "demo", grantedAt: now.addingTimeInterval(-9), expiresAt: now.addingTimeInterval(59 * 60))
+        )
+        let pool: [PoolEntry] = [PoolEntry(name: "Pixel_8", maxInstances: 1), PoolEntry(name: "Pixel_9", maxInstances: 1), PoolEntry(name: "iPhone 17", platform: .ios, maxInstances: 1)]
+        return .live(.mock(slots: [agent, own], pool: pool, generatedAt: now))
+    }
+
     private static func render(_ state: StatusState, named name: String, appearance: NSAppearance.Name = .aqua) throws -> NSBitmapImageRep {
         let model: StatusModel = .init(state: state, now: now)
         let login: LaunchAtLogin = .init(
@@ -35,7 +53,7 @@ struct StatusPanelRenderTests {
             executable: "/opt/berth-bar",
             environment: [:]
         )
-        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login))
+        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, launcher: .init()))
         host.appearance = NSAppearance(named: appearance)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
@@ -85,5 +103,10 @@ struct StatusPanelRenderTests {
         let image: NSBitmapImageRep = try Self.render(Self.busy(), named: name, appearance: appearance)
         Self.expectPanelSized(image)
         Self.expectOpaque(image)
+    }
+
+    @Test
+    func `live with a windowed emulator and android pool entries renders the panel`() throws {
+        Self.expectPanelSized(try Self.render(Self.windowed(), named: "live-windowed"))
     }
 }

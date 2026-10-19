@@ -4,6 +4,7 @@ import SwiftUI
 struct EmulatorRow: View {
     let slot: Slot
     let now: Date
+    let launcher: EmulatorLauncher
 
     var body: some View {
         HStack(spacing: 8) {
@@ -14,14 +15,23 @@ struct EmulatorRow: View {
                 Text(slot.state.rawValue)
             }
             .frame(width: 70, alignment: .leading)
-            Text(slot.lease?.owner.display ?? "—").frame(width: 100, alignment: .leading)
+            Text(slot.lease?.owner.display ?? "—").frame(width: 95, alignment: .leading)
             Text(slot.lease?.label ?? "—").frame(width: 70, alignment: .leading)
             Text(DurationFormat.clock(now.timeIntervalSince(slot.lease?.grantedAt ?? slot.stateSince))).monospacedDigit().frame(width: 55, alignment: .leading)
-            Text(slot.lease.map { DurationFormat.remaining($0.expiresAt.timeIntervalSince(now)) } ?? "—")
-                .foregroundStyle(.secondary)
-                .frame(width: 45, alignment: .leading)
+            remaining.frame(width: 60, alignment: .leading)
         }
         .lineLimit(1)
         .font(.callout)
+    }
+
+    @ViewBuilder
+    private var remaining: some View {
+        if slot.windowed {
+            Button("Release") { launcher.release(serial: slot.serial) }
+                .controlSize(.small)
+        } else {
+            Text(slot.lease.map { DurationFormat.remaining($0.expiresAt.timeIntervalSince(now)) } ?? "—")
+                .foregroundStyle(.secondary)
+        }
     }
 }

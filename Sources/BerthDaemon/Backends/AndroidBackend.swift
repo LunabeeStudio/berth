@@ -50,15 +50,21 @@ public final class AndroidBackend: DeviceBackend {
             .first { !taken.contains($0) }
     }
 
-    public func launch(serial: String, model: String) async throws -> Int32? {
+    static func launchArguments(model: String, port: Int, windowed: Bool, snapshot: String?) -> [String] {
+        var arguments: [String] = ["-avd", model, "-port", String(port), "-read-only"]
+        if !windowed { arguments.append("-no-window") }
+        arguments += ["-no-boot-anim", "-no-audio"]
+        arguments += snapshot.map { ["-snapshot", $0, "-no-snapshot-save"] } ?? ["-no-snapshot"]
+        return arguments
+    }
+
+    public func launch(serial: String, model: String, windowed: Bool) async throws -> Int32? {
         guard let port = Self.port(of: serial) else { throw BackendError.command("launch", "bad serial \(serial)") }
-        var arguments = ["-avd", model, "-port", String(port), "-read-only", "-no-window", "-no-boot-anim", "-no-audio"]
-        if hasCleanSnapshot(model: model) {
-            arguments += ["-snapshot", snapshotName, "-no-snapshot-save"]
-        } else {
+        let hasSnapshot: Bool = hasCleanSnapshot(model: model)
+        if !hasSnapshot {
             Log.info("\(model): no '\(snapshotName)' snapshot, cold booting (run `berth prepare \(model)` for fast resets)")
-            arguments += ["-no-snapshot"]
         }
+        let arguments: [String] = Self.launchArguments(model: model, port: port, windowed: windowed, snapshot: hasSnapshot ? snapshotName : nil)
         return try Spawn.detached(emulator, arguments, log: Paths.logs.appending(path: "\(serial).log"))
     }
 
@@ -80,7 +86,7 @@ public final class AndroidBackend: DeviceBackend {
     /// `snapshot load` is refused under -read-only, but a restart discards every write and boots from the clean snapshot in seconds.
     public func reset(serial: String, model: String, pid: Int32?) async throws -> Int32? {
         await shutdown(serial: serial, pid: pid)
-        let newPID = try await launch(serial: serial, model: model)
+        let newPID = try await launch(serial: serial, model: model, windowed: false)
         try await waitReady(serial: serial, pid: newPID)
         return newPID
     }

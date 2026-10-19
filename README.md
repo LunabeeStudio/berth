@@ -64,7 +64,7 @@ Without `berth` on PATH the hook does nothing. Disable the plugin in `/plugin` t
 
 ## Menu bar
 
-`berth-bar` is a read-only menu bar item showing what is running: label `<leased>/<running>` (plus `+N` when claims wait), panel with emulators and the queue.
+`berth-bar` is a menu bar item showing what is running: label `<leased>/<running>` (plus `+N` when claims wait), panel with emulators and the queue. It can also launch an emulator for you.
 
 ```bash
 berth-bar &                                 # no Dock icon; Quit is in the panel
@@ -73,6 +73,10 @@ berth-bar &                                 # no Dock icon; Quit is in the panel
 Installed with `berth` (see Install). From a source checkout: `swift build -c release && .build/release/berth-bar &`.
 
 The panel has a "Launch at login" checkbox. It writes `~/Library/LaunchAgents/com.berth.bar.plist` (label `com.berth.bar`), which keeps the path of the binary: toggle it off and on after moving `berth-bar`.
+
+The "Launch emulator" menu lists the Android AVDs of the pool and shows only while the daemon runs. Choosing one boots a new instance with a visible window, leased to you (label `you`). It is a normal claim: it waits in the queue when the pool is full, counts toward `maxRunning` and `maxInstances`, and no agent is ever given it. The lease never expires and is never reclaimed, even after `berth-bar` quits. Neither `berth stop-all` nor eviction stops it; `berth stop <serial>` does. A refused launch shows its reason under the menu. Android only.
+
+The emulator row shows a "Release" button instead of a remaining time. Release makes berth forget the emulator: it disappears from berth, keeps running as your own, and berth never touches it again. Closing its window stops it and berth notices.
 
 It never starts the daemon: while the daemon is down the panel says so, and it reconnects on its own once the daemon runs.
 

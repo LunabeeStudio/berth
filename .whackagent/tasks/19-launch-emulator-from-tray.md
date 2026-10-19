@@ -1,6 +1,6 @@
 ---
 issue: 19
-phase:
+phase: validated
 wiki: [[architecture]], [[broker]], [[android-backend]], [[cli]]
 note:
 created: 2026-10-19
@@ -52,8 +52,40 @@ Decisions settled by autopilot from the code (each one tagged):
 
 ## Implementation
 
+Brick 1 — daemon side of windowed claims:
+- `BerthCore/Protocol.swift`: `ClaimRequest.windowed: Bool?` + `isWindowed`. `BerthCore/Model.swift`: `Slot.windowed`, custom `init(from:)` (missing key → false).
+- `BerthDaemon/Backends/DeviceBackend.swift`, `DeviceRouter.swift`, `IOSSimulatorBackend.swift`: `launch(serial:model:windowed:)`. `AndroidBackend.swift`: internal pure `launchArguments(model:port:windowed:snapshot:)`, `-no-window` only when headless.
+- `BerthDaemon/Broker.swift`: windowed claim validation; `matches` requires same `windowed`; boot windowed for windowed waiters; windowed waiter without instance room takes its own model's in-flight stop or stops the oldest free slot of its model (`freeInstance`), never another model's pending stop; lease `expiresAt = .distantFuture`; reap skips windowed for dead owner/expiry; `renew` refused; `release` forgets (no shutdown/reset, serial into `externalSerials`); `stopAll` skips leased windowed; windowed slot ready with no windowed waiter → stopped; unacked windowed lease kept on disconnect; `isIdle` ignores leased windowed.
+
+Brick 2 — panel + CLI:
+- `BerthCore/Client.swift`: `DaemonClient.claim(_:autoSpawn:timeout:onQueued:) -> Grant` (claim → queued → granted → ack loop), shared by `berth/Berth.swift` `ClaimFlow` (behavior unchanged) and the bar.
+- `BerthBar/Launch/EmulatorLauncher.swift` (new feature folder): `@Observable @MainActor`; `launch(model:)` (windowed claim, label `you`, owner berth-bar, `autoSpawn: false`), `release(serial:)`, `error`. Wired in `App/BerthBarDelegate.swift`, `MenuBar/StatusItemController.swift`.
+- `BerthBar/Panel/StatusPanel.swift`: "Launch emulator" menu (Android pool entries, live only) + error caption. `Panel/EmulatorRow.swift`: "Release" button in remaining column for windowed slots (owner column 95, remaining 60).
+- `berth/TUI/StatusRenderer.swift`: remaining `—` for windowed (status + top).
+- README "Menu bar": Launch menu + Release.
+- Tests: `BrokerWindowedTests` (boot windowed with free headless present, headless never gets windowed, no reclaim, renew refused, release forgets, port skip, stop-all/eviction, no-room eviction, no over-eviction, orphan stop, idle check, refused claims, vanish), `SlotDecodingTests`, `AndroidLaunchArgumentsTests`, `EmulatorLauncherTests`, `StatusRendererTests`, `StatusPanelRenderTests` (`live-windowed`).
+
+Build: `swift build` green, no warnings. Tests: `swift test` green (37 + 69 + 28 + 17).
+
 ## Review
 
+### validation (autopilot) — 2026-10-19
+
+Round 1: 11 findings. Major — correctness: windowed waiter stuck when free headless slots of its model fill `maxInstances` (until idle shutdown); structure: claim loop duplicated from `ClaimFlow` and already diverging. Minor — correctness: free windowed orphans unevictable; row 598 pt > 596 pt; `renew` lied about expiry. Style/elegance/structure: member order, stale `isIdle` comment, implicit type, needless `public`, condition hidden in `flatMap`, repeated `.frame`.
+Autofix: own-model stop for no-room windowed waiter; shared `DaemonClient.claim`; orphan stop + filter dropped; owner 95 pt; `renew` refused; style fixes.
+Round 2: 11 fixed; 1 new minor (correctness): no-room windowed waiter consumed another model's pending stop → extra eviction. Autofix: `freeInstance` with per-model stop accounting + test.
+Round 3: fixed; 1 new minor (style): force-unwrap in test. Autofix: `#require`.
+Round 4: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean.
+
 ## Verification
+
+- ✅ `swift build` + `swift test` pass.
+- ✅ Broker tests prove the windowed rules: windowed boot even with a free headless instance; no agent claim gets it; no reclaim by TTL/dead owner; release forgets without shutdown; stop-all skips it, `stop` stops it; queue + limits; refused iOS / no-model claims; old `state.json` decodes.
+- ✅ Launch args: `-no-window` only when headless.
+- ✅ Real AVD (own daemon, `BERTH_HOME=/tmp/bb19`, Pixel_9): headless `berth run`, `berth claim`, `berth release` (reset), `berth status`, `stop-all`, `daemon stop` behave as before after the claim loop moved.
+- ✅ `StatusRendererTests`: `—` for windowed, time for agent leases.
+- ✅ Render `live-windowed.png`: Release button in remaining column, Launch emulator menu, width 620, columns aligned.
+- ✅ Own `berth-bar` launched 2 s, stopped by pid; `desk-state` unchanged (no input sent).
+- Not run by agent (window may take focus; needs clicks): real windowed boot, Launch menu entries, Release click, closing the window, daemon restart re-adopting a windowed emulator, `berth claim` timeout path.
 
 ## Feedback

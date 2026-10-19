@@ -82,6 +82,37 @@ public enum DaemonClient {
         return event
     }
 
+    /// Queues `request`, waits for the grant and acknowledges it.
+    /// - Parameters:
+    ///   - timeout: closes the connection after this long when set.
+    ///   - onQueued: called with the queue position each time it changes.
+    public static func claim(
+        _ request: ClaimRequest,
+        autoSpawn: Bool = true,
+        timeout: Duration? = nil,
+        onQueued: (Int) -> Void = { _ in }
+    ) async throws -> Grant {
+        try await withSession(autoSpawn: autoSpawn) { session in
+            try await session.send(.claim(request))
+            let watchdog: Task<Void, Never>? = timeout.map { session.closeAfter($0) }
+            defer { watchdog?.cancel() }
+            while let event = try await session.next() {
+                switch event {
+                case let .queued(position):
+                    onQueued(position)
+                case let .granted(grant):
+                    try await session.send(.ack(lease: grant.leaseID))
+                    return grant
+                case let .failure(message):
+                    throw ClientError.rejected(message)
+                case .ok, .state:
+                    continue
+                }
+            }
+            throw session.didTimeOut ? ClientError.timedOut : ClientError.connectionClosed
+        }
+    }
+
     public static func snapshot(autoSpawn: Bool = true) async throws -> StateSnapshot {
         let event = try await call(.status, autoSpawn: autoSpawn)
         guard case let .state(snapshot) = event else { throw ClientError.unexpected(event) }

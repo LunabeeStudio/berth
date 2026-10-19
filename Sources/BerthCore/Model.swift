@@ -44,10 +44,20 @@ public struct Slot: Codable, Sendable, Identifiable {
     public var stateSince: Date
     public var lease: Lease?
     public var generation: Int
+    public var windowed: Bool
 
     public var id: String { serial }
 
-    public init(serial: String, model: String, pid: Int32?, state: SlotState, stateSince: Date, lease: Lease? = nil, generation: Int) {
+    public init(
+        serial: String,
+        model: String,
+        pid: Int32?,
+        state: SlotState,
+        stateSince: Date,
+        lease: Lease? = nil,
+        generation: Int,
+        windowed: Bool = false
+    ) {
         self.serial = serial
         self.model = model
         self.pid = pid
@@ -55,6 +65,19 @@ public struct Slot: Codable, Sendable, Identifiable {
         self.stateSince = stateSince
         self.lease = lease
         self.generation = generation
+        self.windowed = windowed
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
+        serial = try container.decode(String.self, forKey: .serial)
+        model = try container.decode(String.self, forKey: .model)
+        pid = try container.decodeIfPresent(Int32.self, forKey: .pid)
+        state = try container.decode(SlotState.self, forKey: .state)
+        stateSince = try container.decode(Date.self, forKey: .stateSince)
+        lease = try container.decodeIfPresent(Lease.self, forKey: .lease)
+        generation = try container.decode(Int.self, forKey: .generation)
+        windowed = try container.decodeIfPresent(Bool.self, forKey: .windowed) ?? false
     }
 }
 
@@ -137,9 +160,10 @@ extension Slot {
         state: SlotState = .free,
         stateSince: Date = .init(timeIntervalSince1970: 0),
         lease: Lease? = nil,
-        generation: Int = 1
+        generation: Int = 1,
+        windowed: Bool = false
     ) -> Slot {
-        .init(serial: serial, model: model, pid: pid, state: state, stateSince: stateSince, lease: lease, generation: generation)
+        .init(serial: serial, model: model, pid: pid, state: state, stateSince: stateSince, lease: lease, generation: generation, windowed: windowed)
     }
 }
 

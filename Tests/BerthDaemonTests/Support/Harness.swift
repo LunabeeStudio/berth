@@ -22,9 +22,16 @@ struct Harness {
     }
 
     @discardableResult
-    func claim(model: String? = nil, platform: Platform? = nil, pid: Int32 = 100, ttl: Int? = nil, acknowledge: Bool = true) async -> Client {
+    func claim(model: String? = nil, platform: Platform? = nil, pid: Int32 = 100, ttl: Int? = nil, windowed: Bool? = nil, acknowledge: Bool = true) async -> Client {
         let client = Client()
-        let request = ClaimRequest(model: model, platform: platform, ttl: ttl, label: nil, owner: Owner(pid: pid, startTime: nil, name: "agent"))
+        let request = ClaimRequest(
+            model: model,
+            platform: platform,
+            ttl: ttl,
+            label: nil,
+            owner: Owner(pid: pid, startTime: nil, name: "agent"),
+            windowed: windowed
+        )
         await broker.claim(request, conn: client.conn, sink: client.sink)
         if acknowledge {
             Task {

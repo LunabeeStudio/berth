@@ -4,6 +4,7 @@
 
 ## Boot
 `emulator -avd X -port P -read-only -no-window -no-boot-anim -no-audio -snapshot berth-clean -no-snapshot-save`
+- Windowed launch (panel, #19): same args minus `-no-window` (`launchArguments(model:port:windowed:snapshot:)`, pure). Never reset (release forgets it).
 - Port: first even 5554–5680 not in daemon slots ∪ `adb devices`. Serial = `emulator-P`.
 - `-read-only` → same AVD runs N times; writes discarded on exit.
 - No `berth-clean` snapshot → `-no-snapshot` cold boot (slow, still clean).

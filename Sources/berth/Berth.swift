@@ -41,24 +41,9 @@ struct ClaimOptions: ParsableArguments {
 
 enum ClaimFlow {
     static func claim(_ options: ClaimOptions, owner: Owner, timeout: Int) async throws -> Grant {
-        try await DaemonClient.withSession { session in
-            try await session.send(.claim(ClaimRequest(model: options.simulator ?? options.avd, platform: options.platform, ttl: options.ttl, label: options.label, owner: owner)))
-            let watchdog = timeout > 0 ? session.closeAfter(.seconds(timeout)) : nil
-            defer { watchdog?.cancel() }
-            while let event = try await session.next() {
-                switch event {
-                case let .queued(position):
-                    printError("berth: waiting for a device (queue position \(position))")
-                case let .granted(grant):
-                    try await session.send(.ack(lease: grant.leaseID))
-                    return grant
-                case let .failure(message):
-                    throw ClientError.rejected(message)
-                case .ok, .state:
-                    continue
-                }
-            }
-            throw session.didTimeOut ? ClientError.timedOut : ClientError.connectionClosed
+        let request: ClaimRequest = .init(model: options.simulator ?? options.avd, platform: options.platform, ttl: options.ttl, label: options.label, owner: owner)
+        return try await DaemonClient.claim(request, timeout: timeout > 0 ? .seconds(timeout) : nil) { position in
+            printError("berth: waiting for a device (queue position \(position))")
         }
     }
 }
