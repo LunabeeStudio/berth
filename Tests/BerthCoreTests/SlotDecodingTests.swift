@@ -22,4 +22,13 @@ struct SlotDecodingTests {
 
         #expect(try Wire.decoder().decode(Slot.self, from: data).windowed)
     }
+
+    @Test
+    func `a lease saved before manual existed decodes as agent lease`() throws {
+        let json: String = #"{"id":"a","owner":{"pid":1,"name":"x"},"grantedAt":0,"expiresAt":0,"acknowledged":true}"#
+
+        let lease: Lease = try Wire.decoder().decode(Lease.self, from: Data(json.utf8))
+
+        #expect(lease.manual == false)
+    }
 }

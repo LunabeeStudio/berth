@@ -33,7 +33,8 @@ struct StatusPanelRenderTests {
             owner: .mock(pid: 99, name: "berth-bar"),
             label: "you",
             grantedAt: now.addingTimeInterval(-120),
-            expiresAt: .distantFuture
+            expiresAt: .distantFuture,
+            manual: true
         )
         let own: Slot = .mock(serial: "emulator-5556", model: "Pixel_9", state: .leased, lease: lease, windowed: true)
         let agent: Slot = .mock(

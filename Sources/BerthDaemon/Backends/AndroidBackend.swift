@@ -84,9 +84,9 @@ public final class AndroidBackend: DeviceBackend {
     }
 
     /// `snapshot load` is refused under -read-only, but a restart discards every write and boots from the clean snapshot in seconds.
-    public func reset(serial: String, model: String, pid: Int32?) async throws -> Int32? {
+    public func reset(serial: String, model: String, pid: Int32?, windowed: Bool) async throws -> Int32? {
         await shutdown(serial: serial, pid: pid)
-        let newPID = try await launch(serial: serial, model: model, windowed: false)
+        let newPID = try await launch(serial: serial, model: model, windowed: windowed)
         try await waitReady(serial: serial, pid: newPID)
         return newPID
     }

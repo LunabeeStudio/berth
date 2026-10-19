@@ -35,8 +35,8 @@ public struct DeviceRouter: DeviceBackend {
         try await backend(forSerial: serial).waitReady(serial: serial, pid: pid)
     }
 
-    public func reset(serial: String, model: String, pid: Int32?) async throws -> Int32? {
-        try await backend(forModel: model).reset(serial: serial, model: model, pid: pid)
+    public func reset(serial: String, model: String, pid: Int32?, windowed: Bool) async throws -> Int32? {
+        try await backend(forModel: model).reset(serial: serial, model: model, pid: pid, windowed: windowed)
     }
 
     public func shutdown(serial: String, pid: Int32?) async {

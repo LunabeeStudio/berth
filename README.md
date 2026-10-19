@@ -74,9 +74,9 @@ Installed with `berth` (see Install). From a source checkout: `swift build -c re
 
 The panel has a "Launch at login" checkbox. It writes `~/Library/LaunchAgents/com.berth.bar.plist` (label `com.berth.bar`), which keeps the path of the binary: toggle it off and on after moving `berth-bar`.
 
-The "Launch emulator" menu lists the Android AVDs of the pool and shows only while the daemon runs. Choosing one boots a new instance with a visible window, leased to you (label `you`). It is a normal claim: it waits in the queue when the pool is full, counts toward `maxRunning` and `maxInstances`, and no agent is ever given it. The lease never expires and is never reclaimed, even after `berth-bar` quits. Neither `berth stop-all` nor eviction stops it; `berth stop <serial>` does. A refused launch shows its reason under the menu. Android only.
+The "Launch emulator" menu lists the Android AVDs of the pool and shows only while the daemon runs. Choosing one takes a free windowed instance of that AVD, else boots a new one with a visible window, leased to you (label `you`). It is a normal claim: it waits in the queue when the pool is full, counts toward `maxRunning` and `maxInstances`, and no agent is ever given it. The lease never expires and is never reclaimed, even after `berth-bar` quits. `berth stop-all` leaves it running; `berth stop <serial>` stops it. A refused launch shows its reason under the menu. Android only.
 
-The emulator row shows a "Release" button instead of a remaining time. Release makes berth forget the emulator: it disappears from berth, keeps running as your own, and berth never touches it again. Closing its window stops it and berth notices.
+The emulator row shows a "Release" button instead of a remaining time. Release returns the emulator to the pool as free, still running with its window: any claim may take it as is, with no reset. When an agent releases it, it is reset by restart and the window comes back. A free windowed emulator is stopped by idle shutdown like any other. Closing its window stops it and berth notices.
 
 It never starts the daemon: while the daemon is down the panel says so, and it reconnects on its own once the daemon runs.
 

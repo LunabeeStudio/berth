@@ -103,7 +103,7 @@ public final class IOSSimulatorBackend: DeviceBackend {
         _ = try await simctl("bootstatus", serial, timeout: bootTimeout, onTimeout: .bootTimeout(serial))
     }
 
-    public func reset(serial: String, model: String, pid: Int32?) async throws -> Int32? {
+    public func reset(serial: String, model: String, pid: Int32?, windowed: Bool) async throws -> Int32? {
         let newPID = try await launch(serial: serial, model: model, windowed: false)
         try await waitReady(serial: serial, pid: newPID)
         return newPID

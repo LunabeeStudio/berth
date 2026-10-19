@@ -22,6 +22,7 @@ final class FakeBackend: DeviceBackend {
         var holdShutdowns = false
         var unavailable: [String: String] = [:]
         var resets: [String] = []
+        var resetWindowed: [Bool] = []
         var shutdowns: [String] = []
         var launches: [Launch] = []
     }
@@ -36,6 +37,7 @@ final class FakeBackend: DeviceBackend {
     func failResets() { state.withLock { $0.failReset = true } }
     func vanish(_ serial: String) { state.withLock { _ = $0.live.remove(serial) } }
     var resets: [String] { state.withLock { $0.resets } }
+    var resetWindowed: [Bool] { state.withLock { $0.resetWindowed } }
     var shutdowns: [String] { state.withLock { $0.shutdowns } }
     var launches: [Launch] { state.withLock { $0.launches } }
 
@@ -56,9 +58,10 @@ final class FakeBackend: DeviceBackend {
 
     func waitReady(serial: String, pid: Int32?) async throws {}
 
-    func reset(serial: String, model: String, pid: Int32?) async throws -> Int32? {
+    func reset(serial: String, model: String, pid: Int32?, windowed: Bool) async throws -> Int32? {
         try state.withLock {
             $0.resets.append(serial)
+            $0.resetWindowed.append(windowed)
             if $0.failReset { throw BackendError.exited(serial) }
         }
         while state.withLock({ $0.holdResets }) { try await Task.sleep(for: .milliseconds(5)) }

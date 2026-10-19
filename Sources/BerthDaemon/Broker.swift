@@ -98,9 +98,12 @@ public actor Broker {
         guard let slot = resolve(target) else { return .failure("no emulator matches '\(target)'") }
         guard slot.state == .leased, let lease = slot.lease else { return .failure("\(slot.serial) is not leased (\(slot.state.rawValue))") }
         Log.info("\(slot.serial): released by \(lease.owner.display)")
-        if slot.windowed {
-            forget(slot.serial)
-            return .ok("released \(slot.serial); it keeps running and berth no longer manages it")
+        if lease.manual {
+            slots[slot.serial]?.state = .free
+            slots[slot.serial]?.stateSince = now()
+            slots[slot.serial]?.lease = nil
+            schedule()
+            return .ok("released \(slot.serial); it stays running, free for the next claim")
         }
         beginReset(slot.serial)
         return .ok("released \(slot.serial)")
@@ -108,7 +111,7 @@ public actor Broker {
 
     public func renew(_ target: String, ttl: Int?) -> Event {
         guard let slot = resolve(target), slot.state == .leased, slot.lease != nil else { return .failure("no leased emulator matches '\(target)'") }
-        guard !slot.windowed else { return .failure("\(slot.serial) is yours from the menu bar and never expires") }
+        guard slot.lease?.manual != true else { return .failure("\(slot.serial) is yours from the menu bar and never expires") }
         let expiry = now().addingTimeInterval(TimeInterval(ttl ?? config.defaultTTLSeconds))
         slots[slot.serial]?.lease?.expiresAt = expiry
         changed()
@@ -124,7 +127,7 @@ public actor Broker {
     public func stopAll() -> Event {
         for waiter in waiters { waiter.sink.yield(.failure("all emulators were stopped by `berth stop-all`")) }
         waiters.removeAll()
-        let serials = slots.values.filter { !($0.windowed && $0.state == .leased) }.map(\.serial).sorted { $0.numericallyPrecedes($1) }
+        let serials = slots.values.filter { !($0.state == .leased && $0.lease?.manual == true) }.map(\.serial).sorted { $0.numericallyPrecedes($1) }
         for serial in serials { beginStop(serial, reason: "stop-all") }
         changed()
         return .ok(serials.isEmpty ? "nothing running" : "stopping \(serials.joined(separator: ", "))")
@@ -145,7 +148,7 @@ public actor Broker {
             guard
                 let slot = slots.values.first(where: { $0.lease?.id == leaseID }),
                 slot.lease?.acknowledged == false,
-                !slot.windowed
+                slot.lease?.manual != true
             else { continue }
             Log.info("\(slot.serial): client left before acknowledging the grant")
             beginReset(slot.serial)
@@ -215,7 +218,7 @@ public actor Broker {
             }
         }
 
-        for slot in slots.values where slot.state == .leased && !slot.windowed {
+        for slot in slots.values where slot.state == .leased && slot.lease?.manual != true {
             guard let lease = slot.lease else { continue }
             if !ownerAlive(lease.owner) {
                 Log.info("\(slot.serial): owner \(lease.owner.display) is gone, reclaiming")
@@ -244,9 +247,9 @@ public actor Broker {
 
     // region Scheduling
 
-    /// No agent lease, no waiting claim and no slot in transition: safe to replace the process. A leased windowed slot does not count.
+    /// No agent lease, no waiting claim and no slot in transition: safe to replace the process. A manually leased slot does not count.
     private var isIdle: Bool {
-        waiters.isEmpty && slots.values.allSatisfy { $0.state == .free || ($0.windowed && $0.state == .leased) }
+        waiters.isEmpty && slots.values.allSatisfy { $0.state == .free || ($0.state == .leased && $0.lease?.manual == true) }
     }
 
     private func schedule() {
@@ -318,12 +321,21 @@ public actor Broker {
 
     private func freeSlot(for request: ClaimRequest) -> Slot? {
         slots.values
-            .filter { $0.state == .free && matches($0, request) }
-            .min { $0.stateSince < $1.stateSince }
+            .filter { $0.state == .free && matches($0, request) && !isReservedForWindowedWaiter($0, request) }
+            .min { ($0.windowed ? 1 : 0, $0.stateSince) < ($1.windowed ? 1 : 0, $1.stateSince) }
+    }
+
+    private func isReservedForWindowedWaiter(_ slot: Slot, _ request: ClaimRequest) -> Bool {
+        slot.windowed && !request.isWindowed && waiters.contains { $0.request.isWindowed && $0.request.model == slot.model }
     }
 
     private func matches(_ slot: Slot, _ request: ClaimRequest) -> Bool {
-        guard slot.windowed == request.isWindowed, config.platform(of: slot.model) == request.resolvedPlatform else { return false }
+        guard config.platform(of: slot.model) == request.resolvedPlatform else { return false }
+        if request.isWindowed {
+            guard slot.windowed else { return false }
+        } else if slot.windowed, slot.state != .free {
+            return false
+        }
         return request.model == nil || request.model == slot.model
     }
 
@@ -352,7 +364,8 @@ public actor Broker {
             label: waiter.request.label,
             grantedAt: current,
             expiresAt: waiter.request.isWindowed ? .distantFuture : current.addingTimeInterval(TimeInterval(waiter.request.ttl ?? config.defaultTTLSeconds)),
-            acknowledged: false
+            acknowledged: false,
+            manual: waiter.request.isWindowed
         )
         slots[serial]?.state = .leased
         slots[serial]?.stateSince = current
@@ -413,9 +426,6 @@ public actor Broker {
         Log.info("\(serial): ready")
         slots[serial]?.state = .free
         slots[serial]?.stateSince = now()
-        if slot.windowed, !waiters.contains(where: { $0.request.isWindowed && $0.request.model == slot.model }) {
-            beginStop(serial, reason: "its windowed claim left before it was ready")
-        }
         schedule()
     }
 
@@ -441,7 +451,7 @@ public actor Broker {
         let generation = slot.generation
         Task {
             do {
-                let pid = try await backend.reset(serial: serial, model: slot.model, pid: slot.pid)
+                let pid = try await backend.reset(serial: serial, model: slot.model, pid: slot.pid, windowed: slot.windowed)
                 self.resetFinished(serial: serial, model: slot.model, generation: generation, pid: pid, error: nil)
             } catch {
                 self.resetFinished(serial: serial, model: slot.model, generation: generation, pid: nil, error: error)
@@ -494,13 +504,6 @@ public actor Broker {
         missedTicks[serial] = nil
         startShutdown(serial: serial, generation: slot.generation, pid: slot.pid)
         changed()
-    }
-
-    private func forget(_ serial: String) {
-        slots[serial] = nil
-        externalSerials.insert(serial)
-        missedTicks[serial] = nil
-        schedule()
     }
 
     private func removeSlot(serial: String, generation: Int) {

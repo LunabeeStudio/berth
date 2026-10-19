@@ -46,7 +46,7 @@ struct StatusRenderer {
             lease?.owner.display ?? "—",
             lease?.label ?? "—",
             DurationFormat.clock(now.timeIntervalSince(lease?.grantedAt ?? slot.stateSince)),
-            (slot.windowed ? nil : lease.map { DurationFormat.remaining($0.expiresAt.timeIntervalSince(now)) }) ?? "—",
+            (lease?.manual == true ? nil : lease.map { DurationFormat.remaining($0.expiresAt.timeIntervalSince(now)) }) ?? "—",
         ]
         let widths = Self.slotColumns.map(\.1)
         var rendered = zip(cells, widths).map { Self.pad($0, $1) }

@@ -1,6 +1,6 @@
 ---
 issue: 19
-phase: validated
+phase: review
 wiki: [[architecture]], [[broker]], [[android-backend]], [[cli]]
 note:
 created: 2026-10-19
@@ -14,6 +14,16 @@ User answers (2026-10-19):
 - **Lifetime.** No TTL, and quitting `berth-bar` does not end it. Berth stops owning the emulator only in two cases. When the user clicks Release, berth forgets it and the emulator keeps running as the user's own. When the user closes the emulator window, berth sees it vanish. Berth never kills it behind the user's back.
 - **Scope.** Android only: the menu lists the pool AVDs. Each launch boots a **new** windowed instance (same `-read-only` + clean snapshot boot as agents get: fast, writes lost on exit). It counts toward `maxRunning` and `maxInstances`. When the pool is full, it waits in the queue like any claim.
 
+Feedback round 1 (2026-10-19), user: "when I release the emulator I launched, I expect it to appears as \"free\", not to disappear". User answer to the follow-up: after release, any claim may take it, as is, with no reset.
+
+- **Two separate notions.** `Slot.windowed` = the emulator has a window (boot mode); it stays true for the slot's whole life. `Lease.manual` = the lease was granted to a windowed claim from the menu bar (the user's own lease), persisted, old JSON decodes `false`. The "never reclaimed", "renew refused", "skipped by stop-all", "ignored by the idle check", Release button and `—` rules all key on `Lease.manual`, not on `Slot.windowed`.
+- **Release = back to free, no reset.** `release` of a manual lease sets the slot `free` (lease cleared, `stateSince` = now) without reset or restart: the emulator keeps running with its window and its current state. Reply: `ok("released <serial>; it stays running, free for the next claim")`. `release` of any other lease is unchanged: reset by restart.
+- **Free windowed slot = normal pool slot.** Any claim may take it as is. A windowed claim (Launch) takes a free windowed slot of its model instead of booting a new one. A headless claim may take a free windowed slot too, but a windowed waiter of that model has priority on it. A headless claim never takes an upcoming (booting/resetting) windowed slot. A windowed claim never takes a headless slot.
+- **Agent on a windowed slot.** An agent lease on a windowed slot is a normal lease (TTL, owner reclaim). Its release or reclaim resets the slot by restart, and the slot comes back windowed (`reset` relaunches with the slot's `windowed`).
+- **Idle stop and eviction apply** to a free windowed slot like to any free slot (15 min idle → stopped, window closes). `stop-all` stops it unless a manual lease holds it.
+- **No orphan stop.** A windowed slot booted for a launcher that left becomes a normal free windowed slot (replaces the earlier "stopped once ready" rule).
+- The earlier "Release = forget" decision below is superseded.
+
 Decisions settled by autopilot from the code (each one tagged):
 
 - **One concept, one name: `windowed`.** `ClaimRequest` gets an optional `windowed: Bool?` (nil = false, so old clients still decode). `Slot` gets `windowed: Bool`, persisted in `state.json`. A `state.json` written before this change decodes with `windowed = false`. (autopilot assumption)
@@ -21,7 +31,7 @@ Decisions settled by autopilot from the code (each one tagged):
 - **Claim validation.** A windowed claim must name a model, and the model must be an Android pool entry. Otherwise it fails at once: "windowed launch needs an Android pool AVD". (autopilot assumption)
 - **Scheduling.** A windowed waiter never takes a free or upcoming headless slot: it always gets a slot booted windowed for it. A headless waiter never takes a windowed slot. Windowed waiters keep their FIFO place and may evict an idle headless slot exactly like any waiter, because they count in the limits. (autopilot assumption)
 - **No reclaim.** The reap loop never reclaims a windowed lease for a dead owner or an expired TTL. The lease owner is `berth-bar`, whose pid may be gone, and `expiresAt` is `Date.distantFuture`. A windowed slot that vanishes from `adb devices` because the user closed the window is stopped and removed as today. (autopilot assumption)
-- **Release = forget.** `release <serial|lease>` on a windowed slot does not reset or stop it. The broker drops the slot without any shutdown, keeps the serial out of port picking (`externalSerials`), and answers `ok("released <serial>; it keeps running and berth no longer manages it")`. From then on it is one of the user's own emulators, which berth never touches. `release` on a headless slot is unchanged: reset by restart. (autopilot assumption)
+- ~~**Release = forget.**~~ (superseded by feedback round 1) `release <serial|lease>` on a windowed slot does not reset or stop it. The broker drops the slot without any shutdown, keeps the serial out of port picking (`externalSerials`), and answers `ok("released <serial>; it keeps running and berth no longer manages it")`. From then on it is one of the user's own emulators, which berth never touches. `release` on a headless slot is unchanged: reset by restart. (autopilot assumption)
 - **Protected from bulk stops.** `stop-all` and eviction never stop a windowed slot. An explicit `berth stop <serial>` (or `x` in `berth top`) still stops it, because it names that device. (autopilot assumption)
 - **Self-update.** The idle check (`isIdle`, used by the daemon re-exec) ignores leased windowed slots. Otherwise the user's emulator would block auto-update forever. The re-exec keeps the pid and re-adopts the slot from `state.json`. (autopilot assumption)
 - **Panel.** The panel gets a "Launch emulator" menu listing the Android pool AVDs from the snapshot (`snapshot.pool`). It is visible only while the daemon is live. Choosing an AVD sends a windowed claim with that model and label `you`, then acknowledges the grant and closes the connection. While it waits, the claim shows in Queue like any other. A refused claim shows its message as one caption line under the menu, until the next launch attempt. `berth-bar` is no longer read-only toward the daemon. It still never auto-spawns it. (autopilot assumption)
@@ -39,13 +49,16 @@ Decisions settled by autopilot from the code (each one tagged):
 - Choosing an AVD boots a new instance of it with a visible emulator window, even when a free headless instance of the same AVD is running.
 - That emulator appears in the panel and in `berth status` as leased, label `you`, and no `berth claim` from an agent is ever granted it.
 - When `maxRunning` is reached, the launch waits in the Queue section and boots once room frees up, exactly like an agent claim.
-- The windowed lease is never reclaimed: not after the default TTL, not after `berth-bar` quits, and not by the reap loop.
+- The manual lease (from the Launch menu) is never reclaimed: not after the default TTL, not after `berth-bar` quits, and not by the reap loop.
 - In the panel, the windowed emulator row shows a "Release" button instead of a remaining time. Agent-leased rows show no button.
-- Release (button, or `berth release <serial>`) removes the emulator from berth: it disappears from the panel and from `berth status`. The emulator process and its window keep running, and berth never stops or reuses it afterwards.
+- Release (button, or `berth release <serial>`) of the manual lease turns the emulator `free` in the panel and in `berth status`, with no restart: the process and its window keep running.
+- After that release, the next agent claim for that AVD (or any Android claim) gets that same emulator as is, without reset. Its release then resets it by restart, and it comes back with a window.
+- Launch emulator on an AVD that has a free windowed instance reuses that instance instead of booting a new one.
+- A free windowed emulator is stopped by idle shutdown and eviction like any free emulator.
 - `berth release` on an agent-leased emulator still resets it as before.
 - Closing the emulator window removes it from berth within the usual vanish delay.
-- `berth stop-all` leaves the windowed emulator running and leased. `berth stop <serial>` stops it.
-- `berth status` and `berth top` show `—` as remaining time for the windowed lease.
+- `berth stop-all` leaves an emulator held by a manual lease running and leased. `berth stop <serial>` stops it.
+- `berth status` and `berth top` show `—` as remaining time for a manual lease; an agent lease on a windowed emulator shows its time.
 - A windowed claim for an iOS simulator, or with no model, is refused with a clear message, and the panel shows that message.
 - A `state.json` written before this change still loads. A daemon restart re-adopts a running windowed emulator as leased and windowed.
 - README documents the Launch menu and Release.
@@ -86,6 +99,23 @@ Round 4: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure �
 - ✅ `StatusRendererTests`: `—` for windowed, time for agent leases.
 - ✅ Render `live-windowed.png`: Release button in remaining column, Launch emulator menu, width 620, columns aligned.
 - ✅ Own `berth-bar` launched 2 s, stopped by pid; `desk-state` unchanged (no input sent).
+- Round 1 (feedback): build ✅, full `swift test` ✅; headless claim / run / release / stop-all on real Pixel_9 ✅; render: Release button on the manual-lease row only ✅.
 - Not run by agent (window may take focus; needs clicks): real windowed boot, Launch menu entries, Release click, closing the window, daemon restart re-adopting a windowed emulator, `berth claim` timeout path.
 
 ## Feedback
+
+### Round 1 — 2026-10-19
+
+Asked (user): "when I release the emulator I launched, I expect it to appears as "free", not to disappear". Follow-up answer: after release, any claim may take it, as is, with no reset.
+Triage: adjustment. Decisions and acceptance criteria updated (Feedback round 1 block in `## Context / Decisions`).
+Route: implementer (fresh spawn; daemon + bar + CLI, several files).
+Changed:
+- `BerthCore/Model.swift`: `Lease.manual` (persisted, old JSON → false). Grant sets it from `request.isWindowed`.
+- `BerthDaemon/Broker.swift`: no-reclaim, renew refusal, stop-all skip, idle-check exception and disconnect rule keyed on `lease.manual`. Release of a manual lease → slot `free`, no reset, no shutdown. `forget` and the orphan stop removed. `matches` / `freeSlot`: windowed request needs a windowed slot; headless request may take a free windowed slot (headless preferred), never an upcoming windowed one; windowed waiter has priority on a free windowed slot; Launch reuses a free windowed slot.
+- Backends: `reset(…, windowed:)`; Android relaunches with the slot's window mode.
+- `Panel/EmulatorRow.swift`, `TUI/StatusRenderer.swift`: Release button and `—` keyed on `lease.manual`.
+- README "Menu bar": release returns it to the pool.
+- Tests: broker cases for release → free, reuse as is, agent release → windowed reset, reclaim of agent lease on a windowed slot, Launch reuse, priority, no upcoming windowed for headless, idle stop, stop-all; Lease old-JSON decode; renderer + panel render keyed on manual.
+Review: deferred to `/wa-validate` (`review.when: on_validation`). Wiki pages still describe "release = forget": `/wa-validate` re-syncs them.
+Verify: build ✅, full `swift test` ✅ (37 + 76 + 29 + 17). Headless regression on own daemon (`berth run`, `claim`, `release` → reset → free, `stop-all`, `daemon stop`) ✅. Render `live-windowed`: Release on the manual row only ✅. Windowed boot and clicks not run by agent.
+
