@@ -62,7 +62,8 @@ struct StatusPanelRenderTests {
         _ state: StatusState,
         named name: String,
         appearance: NSAppearance.Name = .aqua,
-        mirror: MirrorController = .init()
+        mirror: MirrorController = .init(),
+        autoUpdate: AutoUpdateSetting? = nil
     ) throws -> NSBitmapImageRep {
         let model: StatusModel = .init(state: state, now: now)
         let login: LaunchAtLogin = .init(
@@ -70,7 +71,8 @@ struct StatusPanelRenderTests {
             executable: "/opt/berth-bar",
             environment: [:]
         )
-        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, launcher: .init(), mirror: mirror))
+        let setting: AutoUpdateSetting = try autoUpdate ?? Self.setting(autoUpdate: true)
+        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, autoUpdate: setting, launcher: .init(), mirror: mirror))
         host.appearance = NSAppearance(named: appearance)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
@@ -78,6 +80,13 @@ struct StatusPanelRenderTests {
         host.cacheDisplay(in: host.bounds, to: image)
         try writePNG(image, named: name)
         return image
+    }
+
+    private static func setting(autoUpdate: Bool) throws -> AutoUpdateSetting {
+        let url: URL = FileManager.default.temporaryDirectory.appendingPathComponent("berth-render-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Config(autoUpdate: autoUpdate).save(to: url)
+        return .init(configURL: url)
     }
 
     private static func writePNG(_ image: NSBitmapImageRep, named name: String) throws {
@@ -130,6 +139,19 @@ struct StatusPanelRenderTests {
     @Test(arguments: [(NSAppearance.Name.aqua, "live-mirror"), (.darkAqua, "live-mirror-dark")])
     func `mirror button rows render in every appearance`(appearance: NSAppearance.Name, name: String) throws {
         Self.expectPanelSized(try Self.render(Self.mirrorable(), named: name, appearance: appearance))
+    }
+
+    @Test(arguments: [(NSAppearance.Name.aqua, "auto-update-off"), (.darkAqua, "auto-update-off-dark")])
+    func `auto update unchecked renders in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        let setting: AutoUpdateSetting = try Self.setting(autoUpdate: false)
+        Self.expectPanelSized(try Self.render(.connecting, named: name, appearance: appearance, autoUpdate: setting))
+    }
+
+    @Test(arguments: [(NSAppearance.Name.aqua, "auto-update-disabled"), (.darkAqua, "auto-update-disabled-dark")])
+    func `auto update disabled without a config renders in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        let missing: URL = FileManager.default.temporaryDirectory.appendingPathComponent("berth-missing-\(UUID().uuidString).json")
+        let setting: AutoUpdateSetting = .init(configURL: missing)
+        Self.expectPanelSized(try Self.render(.connecting, named: name, appearance: appearance, autoUpdate: setting))
     }
 
     @Test
