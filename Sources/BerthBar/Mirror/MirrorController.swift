@@ -11,23 +11,27 @@ final class MirrorController {
     private static let normalExitCodes: Set<Int32> = [windowClosed, deviceDisconnected]
 
     private(set) var caption: String?
+    @ObservationIgnored private(set) var pendingSimulatorOpen: Task<Void, Never>?
 
     @ObservationIgnored private var sessions: [String: Session] = [:]
     private let launcher: any MirrorLauncher
     private let locator: ScrcpyLocator
     private let logs: URL
     private let activate: @MainActor (Int32) -> Void
+    private let simulatorOpener: any SimulatorMirrorOpener
 
     init(
         launcher: any MirrorLauncher = SystemMirrorLauncher(),
         locator: ScrcpyLocator = .init(),
         logs: URL = Paths.logs,
-        activate: @escaping @MainActor (Int32) -> Void = { NSRunningApplication(processIdentifier: $0)?.activate() }
+        activate: @escaping @MainActor (Int32) -> Void = { NSRunningApplication(processIdentifier: $0)?.activate() },
+        simulatorOpener: any SimulatorMirrorOpener = SystemSimulatorMirrorOpener()
     ) {
         self.launcher = launcher
         self.locator = locator
         self.logs = logs
         self.activate = activate
+        self.simulatorOpener = simulatorOpener
     }
 
     private static func launchFailedCaption(serial: String, error: any Error) -> String {
@@ -38,13 +42,12 @@ final class MirrorController {
         "mirror \(serial) failed, see \(log.path)"
     }
 
-    func open(_ slot: Slot) {
+    func open(_ slot: Slot, platform: Platform) {
         caption = nil
-        if let session = sessions[slot.serial] {
-            activate(session.process.pid)
-            return
+        switch platform {
+        case .android: openScrcpy(slot)
+        case .ios: openInDeviceHub(udid: slot.serial)
         }
-        start(serial: slot.serial, model: slot.model, mode: slot.state == .free ? .control : .viewOnly)
     }
 
     func apply(_ snapshot: StateSnapshot) {
@@ -67,6 +70,32 @@ final class MirrorController {
         }
         if case let .live(snapshot) = state {
             apply(snapshot)
+        }
+    }
+
+    private func openScrcpy(_ slot: Slot) {
+        if let session = sessions[slot.serial] {
+            activate(session.process.pid)
+            return
+        }
+        start(serial: slot.serial, model: slot.model, mode: slot.state == .free ? .control : .viewOnly)
+    }
+
+    private func openInDeviceHub(udid: String) {
+        guard let url = DeviceHubURL.open(udid: udid) else {
+            caption = "mirror \(udid) failed: invalid DeviceHub URL"
+            return
+        }
+        guard simulatorOpener.canOpen(url) else {
+            caption = "DeviceHub not found: needs Xcode 27"
+            return
+        }
+        pendingSimulatorOpen = Task { [simulatorOpener] in
+            do {
+                try await simulatorOpener.open(url)
+            } catch {
+                caption = Self.launchFailedCaption(serial: udid, error: error)
+            }
         }
     }
 

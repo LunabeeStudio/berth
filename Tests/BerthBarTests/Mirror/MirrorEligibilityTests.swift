@@ -31,11 +31,30 @@ struct MirrorEligibilityTests {
         #expect(!MirrorEligibility.showsMirrorButton(slot, pool: pool))
     }
 
-    @Test
-    func `no button on an ios simulator`() {
-        let slot: Slot = .mock(model: "iPhone 16", state: .free)
+    @Test(arguments: [SlotState.free, .leased])
+    func `ios simulator in a mirrorable state shows the button`(state: SlotState) {
+        let slot: Slot = .mock(model: "iPhone 16", state: state)
+
+        #expect(MirrorEligibility.showsMirrorButton(slot, pool: pool))
+    }
+
+    @Test(arguments: [SlotState.booting, .resetting, .stopping])
+    func `no button on an ios simulator while it is not free or leased`(state: SlotState) {
+        let slot: Slot = .mock(model: "iPhone 16", state: state)
 
         #expect(!MirrorEligibility.showsMirrorButton(slot, pool: pool))
+    }
+
+    @Test(arguments: [
+        ("Pixel_9", SlotState.free, "Mirror"),
+        ("Pixel_9", .leased, "Mirror"),
+        ("iPhone 16", .free, "Mirror in DeviceHub"),
+        ("iPhone 16", .leased, "Mirror in DeviceHub (input reaches the agent's simulator)")
+    ])
+    func `tooltip follows platform and state`(model: String, state: SlotState, expected: String) {
+        let slot: Slot = .mock(model: model, state: state)
+
+        #expect(MirrorEligibility.help(for: slot, pool: pool) == expected)
     }
 
     @Test
