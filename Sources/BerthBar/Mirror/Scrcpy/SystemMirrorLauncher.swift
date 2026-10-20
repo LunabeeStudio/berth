@@ -10,7 +10,7 @@ struct SystemMirrorLauncher: MirrorLauncher {
 
     static func defaultADB() -> String {
         let config: Config = (try? Config.load()) ?? .init()
-        return URL(fileURLWithPath: config.resolvedSDKRoot).appending(path: "platform-tools/adb").path
+        return config.adbPath
     }
 
     func launch(

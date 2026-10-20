@@ -1,6 +1,6 @@
 struct DeviceCommandGuard {
     static let defaultRules: [any DeviceCommandRule] = [
-        AdbRule(), EmulatorRule(), SimctlRule(), XcodebuildRule(), GradleRule(), ProcessKillRule(),
+        AdbRule(), EmulatorRule(), SimctlRule(), XcodebuildRule(), GradleRule(), ProcessKillRule(), ScrcpyRule(),
     ]
     private static let shells: Set<String> = ["sh", "bash", "zsh"]
 

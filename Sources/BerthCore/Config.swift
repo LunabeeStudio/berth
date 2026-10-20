@@ -90,6 +90,10 @@ public struct Config: Codable, Sendable {
         return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Android/sdk").path
     }
 
+    public var adbPath: String {
+        URL(fileURLWithPath: resolvedSDKRoot).appending(path: "platform-tools/adb").path
+    }
+
     public func platform(of model: String) -> Platform {
         pool.platform(of: model)
     }

@@ -1,10 +1,10 @@
 import Foundation
 
-struct ScrcpyLocator {
+public struct ScrcpyLocator {
     private let environment: [String: String]
     private let fallbackDirectories: [String]
 
-    init(
+    public init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         fallbackDirectories: [String] = ["/opt/homebrew/bin", "/usr/local/bin"]
     ) {
@@ -12,7 +12,7 @@ struct ScrcpyLocator {
         self.fallbackDirectories = fallbackDirectories
     }
 
-    func locate() -> String? {
+    public func locate() -> String? {
         let pathDirectories: [String] = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
         return (pathDirectories + fallbackDirectories)
             .map { URL(fileURLWithPath: $0).appending(path: "scrcpy").path }

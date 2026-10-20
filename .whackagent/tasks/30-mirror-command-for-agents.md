@@ -1,6 +1,6 @@
 ---
 issue: 30
-phase:
+phase: review
 type: feature
 wiki: [[cli]], [[claude-code]], [[architecture]]
 note: Depends on #29 (iOS DeviceHub mirror): its DeviceHub URL builder and opener move to BerthCore here. Code after #29 merges.
@@ -59,3 +59,45 @@ Decisions (grill, 2026-10-20):
 - `docs/AGENTS.md` and the skill body explain the human-action flow with `berth mirror`, and the skill description names login, sign-in, 2FA and captcha.
 - The `berth-bar` Mirror button (Android and iOS) behaves exactly as before.
 - README documents `berth mirror` and its optional dependencies.
+
+## Implementation
+
+Round 1, 2026-10-20. One implementer, 3 bricks, rebased on main after #31 (#29) merged.
+
+- Brick 1, shared mirror core in BerthCore:
+  - `git mv` of `MirrorMode`, `ScrcpyArguments`, `ScrcpyLocator` to `Sources/BerthCore/Mirror/Scrcpy/`, and of `DeviceHubURL`, `SimulatorMirrorOpener`, `SystemSimulatorMirrorOpener` to `Sources/BerthCore/Mirror/DeviceHub/`. They are now public. Their tests moved to `Tests/BerthCoreTests/Mirror/`.
+  - `Config.adbPath` (`<resolvedSDKRoot>/platform-tools/adb`) is the one home for the SDK adb path. `berth-bar`'s `SystemMirrorLauncher.defaultADB()` uses it.
+  - `Spawn.detached` takes an optional `environment` (nil = inherit, as before). `SpawnTests` covers it.
+- Brick 2, `berth mirror <serial>`:
+  - `Sources/berth/Commands/Mirror.swift`, registered in `Berth.swift`. It reads a snapshot with `autoSpawn: false`.
+  - `Sources/berth/Mirror/`: `MirrorTarget`, `MirrorError` (exact messages from the decisions), the pure `MirrorResolver`, the `AndroidMirrorLauncher` protocol with `SpawnMirrorLauncher` (detached scrcpy, `ADB` in env, log `mirror-<serial>.log`), and the `@MainActor` `MirrorFlow` with injectable locator, launcher, opener, adb and logs.
+  - `Tests/berthTests/Mirror/`: resolver and flow tests with their own fakes. Test targets cannot share files, so the fake opener is a small copy of the `BerthBarTests` one.
+- Brick 3, discovery:
+  - `ScrcpyRule` is in `DeviceCommandGuard.defaultRules`. It denies `scrcpy` except `--version`, `-v`, `--help` and `-h`, and its reason names `berth mirror`. Guard tests cover direct and `sh -c` forms.
+  - `docs/AGENTS.md` has a new section, "When a human must act on the device". The skill body is the same text, and the skill description now names login, sign-in, 2FA and captcha.
+  - README: a `berth mirror` row under "Use" with its optional dependencies, and the guard bullet under "Claude Code" now names scrcpy.
+- Notes:
+  - Plain `swift test` fails on this Mac before any test runs: the Command Line Tools have no `TestingMacros` plugin. Tests run with `DEVELOPER_DIR=/Applications/Xcode-27.1.0.app/Contents/Developer swift test`.
+  - `AndroidBackend` still builds its own adb path from its `sdk` variable. It does not read `Config`, so it was left as is.
+
+## Review
+
+Not run yet: `review.when: on_validation`, so the verifier runs at `/wa-validate`.
+
+## Verification
+
+Build ✅ (`swift build`). Tests ✅: the 4 suites pass, with berthTests 49, BerthBarTests 83, BerthCoreTests 44 and BerthDaemonTests 58 tests.
+
+Runtime checks by the agent. No window was opened (`CLAUDE.md#Desktop proofs`):
+- ✅ `berth mirror --help` describes the command, and `berth --help` lists `mirror`.
+- ✅ With no daemon on `BERTH_HOME=/tmp/bm30`, `berth mirror foo` exits 1 with `berth: berth daemon unavailable: not running`. No daemon was started.
+- ✅ With a daemon on `/tmp/bm30` and an empty pool, `berth mirror foo` exits 1 with `berth: foo is not a berth device`. That daemon was then stopped.
+- ✅ The guard denies `scrcpy -s emulator-5554` (exit 2, and stderr names `berth mirror`). It allows `scrcpy --version` and `berth mirror emulator-5554` (exit 0).
+- ✅ By unit tests with fakes:
+  - free, booting, resetting and stopping slots give `claim it first`;
+  - the scrcpy arguments, title and `ADB` env are right;
+  - scrcpy not found, DeviceHub not found and open failure give their errors;
+  - iOS opens the DeviceHub URL.
+- Manual validation, not run by the agent: a real scrcpy window on a leased emulator that accepts input, a real DeviceHub window on a leased simulator, the scrcpy window closing on release, the lease staying the same, and the `berth-bar` Mirror button still working.
+
+## Feedback

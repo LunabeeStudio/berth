@@ -1,6 +1,6 @@
 ---
 name: berth
-description: Use whenever a task needs an Android emulator or iOS simulator - running adb, emulator, Gradle connected or instrumented tests or install tasks, xcrun simctl, xcodebuild test, UI tests, or screenshots on a device. Explains how to claim and release devices with berth so parallel agents do not collide.
+description: Use whenever a task needs an Android emulator or iOS simulator - running adb, emulator, Gradle connected or instrumented tests or install tasks, xcrun simctl, xcodebuild test, UI tests, or screenshots on a device, or a human must act on it (login, sign-in, 2FA, captcha, showing the emulator or simulator window). Explains how to claim and release devices with berth so parallel agents do not collide.
 ---
 
 ## Android emulators (berth)
@@ -51,3 +51,17 @@ berth release "$UDID"                                                # always re
 
 - A released simulator is erased; nothing you install survives.
 - `berth claim` without `--ios` still returns an Android emulator.
+
+## When a human must act on the device
+
+Login, sign-in, 2FA, captcha, or anything you cannot automate: ask the user to do it on the device.
+
+```bash
+SERIAL=$(berth claim --label "<short task name>" --timeout 110)   # not `berth run`: it releases the device when its command ends
+berth mirror "$SERIAL"                                           # opens a window on the user's screen; use the UDID for a simulator
+```
+
+- Tell the user exactly what to do in that window, then wait for their reply in chat before you continue.
+- Do not release the device meanwhile; `berth renew "$SERIAL"` if the wait is long.
+- Works for Android (needs scrcpy) and iOS (needs Xcode 27).
+- Never run `scrcpy` yourself: the guard blocks it.

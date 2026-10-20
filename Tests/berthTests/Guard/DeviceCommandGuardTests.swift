@@ -46,6 +46,8 @@ struct DeviceCommandGuardTests {
         "bash <<'EOF'\necho hi\nadb shell ls\nEOF",
         "time -p ./gradlew connectedCheck",
         "| adb install x",
+        "scrcpy -s emulator-5554",
+        "sh -c 'scrcpy -s emulator-5554'",
     ]
 
     private static let allowed: [String] = [
@@ -87,6 +89,9 @@ struct DeviceCommandGuardTests {
         "| sh",
         "(| sh)",
         "cat > run.sh <<EOF\nadb install x\nEOF",
+        "scrcpy --version",
+        "scrcpy -h",
+        "berth mirror emulator-5554",
     ]
 
     @Test(arguments: denied)
@@ -124,5 +129,16 @@ extension DeviceCommandGuardTests {
     func `custom rules replace the defaults`() {
         let guardrail: DeviceCommandGuard = .init(environment: [:], rules: [])
         #expect(guardrail.verdict(for: "adb install x") == .allow)
+    }
+}
+
+extension DeviceCommandGuardTests {
+    @Test
+    func `scrcpy denial points to berth mirror`() {
+        guard case let .deny(reason) = DeviceCommandGuard(environment: [:]).verdict(for: "scrcpy -s emulator-5554") else {
+            Issue.record("expected deny")
+            return
+        }
+        #expect(reason.contains("berth mirror"))
     }
 }
