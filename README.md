@@ -96,6 +96,8 @@ The emulator row shows a "Release" button instead of a remaining time. Release r
 
 Headless Android emulator rows, free or leased, show a Mirror button (`play.display`) that opens a scrcpy window on that emulator. scrcpy is an optional dependency (`brew install scrcpy`): `berth-bar` looks for it on `PATH`, then in `/opt/homebrew/bin` and `/usr/local/bin`, and runs it with the SDK adb. Input works only on a free emulator; a leased one is view only (the window title ends with `(view only)`), and a free mirror switches to view only when an agent claims the emulator. An emulator touched through a mirror goes to the next claim as is, with no reset. A reset or stop closes the window. There is one window per emulator: clicking again brings it to front. Quit closes the mirrors `berth-bar` opened. Without scrcpy the panel shows `scrcpy not found: brew install scrcpy`; a scrcpy that fails shows `mirror <serial> failed, see <log>`, with its output in `~/Library/Logs/berth/mirror-<serial>.log`.
 
+iOS simulator rows, free or leased, also show the Mirror button. It opens the simulator in DeviceHub, which ships with Xcode 27 (no extra install), through the `devices://device/open?id=<udid>` URL. DeviceHub has no view-only mode, so input works on a leased simulator too: it reaches the agent's simulator. There is one DeviceHub window per simulator. `berth-bar` does not close DeviceHub on Quit. Without DeviceHub the panel shows `DeviceHub not found: needs Xcode 27`.
+
 It never starts the daemon: while the daemon is down the panel says so, and it reconnects on its own once the daemon runs.
 
 ## How it behaves

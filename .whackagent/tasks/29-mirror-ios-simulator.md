@@ -1,6 +1,6 @@
 ---
 issue: 29
-phase: in-progress
+phase: validated
 wiki: [[architecture]], [[ios-backend]]
 note: Autopilot grill (AFK). Open PR #28 (#25) touches StatusPanel.swift, StatusPanelRenderTests.swift, BerthBarDelegate.swift, README and wiki architecture: merge conflict likely, mechanical.
 created: 2026-10-20
@@ -53,3 +53,35 @@ Decisions (autopilot, nobody to ask):
 - The Android mirror (scrcpy) behaves exactly as before.
 - The daemon, the CLI and the berth simulators behave exactly as before: no protocol change.
 - README documents the iOS Mirror button and that it needs Xcode 27 (DeviceHub).
+
+## Implementation
+
+Autopilot run, 2026-10-20. One implementer, 1 brick (code + README), then 3 autofix rounds.
+
+- `Sources/BerthBar/Mirror/DeviceHub/`:
+  - `DeviceHubURL.open(udid:)` builds `devices://device/open?id=<udid>` with `URLComponents` and returns `URL?`.
+  - `SimulatorMirrorOpener` is a `@MainActor` protocol with `canOpen(_:)` and `open(_:) async throws`. `SystemSimulatorMirrorOpener` checks `NSWorkspace.urlForApplication(toOpen:)` and opens the URL with `activates = true`.
+- `MirrorController.open(_:platform:)` routes with an exhaustive `switch`: Android goes to scrcpy (unchanged), iOS goes to DeviceHub. iOS keeps no session, so `apply` and `stopAll` leave iOS slots alone. Captions: `DeviceHub not found: needs Xcode 27`, `mirror <udid> failed: <error>`, `mirror <udid> failed: invalid DeviceHub URL`.
+- `MirrorEligibility` accepts iOS slots in `free` or `leased`. `MirrorEligibility.help(for:pool:)` gives the tooltip: `Mirror` (Android), `Mirror in DeviceHub` (iOS free), `Mirror in DeviceHub (input reaches the agent's simulator)` (iOS leased). `EmulatorRow` passes `pool.platform(of: slot.model)` and uses that tooltip.
+- The scrcpy files moved to `Sources/BerthBar/Mirror/Scrcpy/` (pure renames). The tests follow the same tree.
+- README "Menu bar": a paragraph on the iOS Mirror button.
+
+## Verification
+
+- `swift build` passes. `swift test` passes with `DEVELOPER_DIR=/Applications/Xcode-27.1.0.app/Contents/Developer` (without it, CommandLineTools lacks the swift-testing macros).
+- Render test `StatusPanelRender`: in `live-mirror.png`, the free iOS row `UDID-1` shows the Mirror button, the resetting Android row shows none, and the Android rows are unchanged.
+- Unit tests cover: the URL, iOS routing (the scrcpy launcher is never called), both captions, the caption cleared on the next click, `apply` and `stopAll` ignoring iOS, eligibility for every iOS state, and the tooltip for Android, iOS free and iOS leased.
+- The DeviceHub URL was proven by hand during the grill, on a `simctl`-booted `berth-` simulator, with `open -g` (no focus change): it opened a 296×662 DeviceHub window titled `berth-iPhone 18 Pro-2`.
+- Not run by the agent (needs a click on the popover, which takes focus): opening DeviceHub from the panel, input, reset while mirrored, closing or quitting DeviceHub.
+
+## Review
+
+### validation (autopilot) — 2026-10-20
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean after 3 autofix rounds.
+
+What autofix changed:
+- Round 1: the flat `Mirror/` folder (12 files) is split into `Mirror/DeviceHub/` and `Mirror/Scrcpy/`, and the tests follow. `platform` is now a required argument, routed by an exhaustive `switch`. `DeviceHubURL` returns `URL?` instead of a `file:///` placeholder. The tooltip text moved to `MirrorEligibility.help(for:pool:)` and has a parameterized test. Member order and visibility fixed, and a test that never throws no longer says `throws`.
+- Round 2: when the URL is nil, the caption is now `mirror <udid> failed: invalid DeviceHub URL`, instead of a borrowed Cocoa file error.
+- Round 3: private `openScrcpy` moved below the internal methods.
+- Wiki: [[architecture]] and [[ios-backend]] synced. The claim that quitting DeviceHub keeps berth simulators running is marked unconfirmed until a human checks it.

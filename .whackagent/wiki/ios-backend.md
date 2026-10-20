@@ -18,5 +18,8 @@ Pool entry `{"simulator": "iPhone 17", "maxInstances": 2}` — value = simctl de
 - Live = booted `berth-` devices; simctl failure → nil (unknown).
 - Measured (iOS 27, iPhone 17): first claim ≈ 20 s, reset ≈ 24 s (vs Android ≈ 5 s).
 
+## Mirror
+`berth-bar` Mirror button on `free`/`leased` sims → DeviceHub window (`devices://device/open?id=<udid>`), live + interactive, sim not rebooted. DeviceHub "Stop simulators on quit" says it only hits sims it booted itself → berth sims should survive (unconfirmed, human check in #29). Xcode 27 has no Simulator.app. → [[architecture]], #29
+
 ## Routing
 `DeviceRouter` (struct) wraps Android + iOS backends: model calls by `Config.platform(of:)`, serial-only calls by shape (`emulator-<port>` = Android, else iOS). `liveSerials` queries only platforms in pool; any nil → nil, so transient adb/simctl failure never stops slots. Daemon runs `adb start-server` only with Android entries. See [[broker]], [[architecture]].

@@ -160,7 +160,7 @@ struct StatusPanelRenderTests {
             launcher: FakeMirrorLauncher(),
             locator: .init(environment: [:], fallbackDirectories: [])
         )
-        mirror.open(.mock())
+        mirror.open(.mock(), platform: .android)
 
         Self.expectPanelSized(try Self.render(Self.mirrorable(), named: "live-mirror-caption", mirror: mirror))
         #expect(mirror.caption == "scrcpy not found: brew install scrcpy")

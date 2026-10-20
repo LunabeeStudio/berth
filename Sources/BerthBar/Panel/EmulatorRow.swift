@@ -30,9 +30,9 @@ struct EmulatorRow: View {
     @ViewBuilder
     private var mirrorButton: some View {
         if MirrorEligibility.showsMirrorButton(slot, pool: pool) {
-            Button { mirror.open(slot) } label: { Image(systemName: "play.display") }
+            Button { mirror.open(slot, platform: pool.platform(of: slot.model)) } label: { Image(systemName: "play.display") }
                 .buttonStyle(.borderless)
-                .help("Mirror")
+                .help(MirrorEligibility.help(for: slot, pool: pool))
         }
     }
 
