@@ -1,7 +1,7 @@
 ---
 issue: 18
-phase: validated
-wiki: [[architecture]]
+phase: review
+wiki:
 note:
 created: 2026-10-19
 ---
@@ -18,7 +18,7 @@ Cause, from the code: `StatusPanel` draws no background of its own, so the `NSPo
 - **Where it lives.** Existing files of the `BerthBar` `Panel/` feature only: `StatusPanel.swift` (background), `EmulatorRow.swift` (state cell). No new folder. If the state cell grows beyond a few lines, it may become its own small view in `Panel/`. (autopilot assumption)
 - **Tests.** `StatusPanelRenderTests` already renders the panel offscreen in the light appearance. Add the dark appearance (`darkAqua`) for the live-busy state, and assert that the rendered image is fully opaque (every pixel alpha = 1) in both appearances. Before the fix the background is transparent, so this check fails; after it, it passes. PNGs are still written when `BERTH_PANEL_PNG_DIR` is set.
 - **Runtime proof.** The real popover only exists once a human clicks the menu bar item (see `CLAUDE.md#Desktop proofs`). The agent proves the panel by the render tests and by looking at the light and dark PNGs. Checking the real popover over a dark window stays with the user.
-- **Docs.** Wiki `architecture` page: one line under key decisions saying the panel draws an opaque background because the glass popover is unreadable over dark windows.
+- **Docs.** No wiki line: a local color fix is not an architecture decision.
 
 ## Acceptance criteria
 
@@ -58,3 +58,13 @@ Round 3: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure �
 - Not run by agent (needs a click on the menu bar item): real popover over a dark window, light and dark mode.
 
 ## Feedback
+
+### Round 1 — 2026-10-20
+
+Asked (PR review): "A simple color change should not fill .whackagent/wiki/architecture.md"
+
+- Triage: adjustment (drop the wiki line) + rule (no wiki line for local fixes).
+- Change (inline): `.whackagent/wiki/architecture.md` back to `main`, no line for #18. Task file: `wiki:` empty, Docs decision updated. Acceptance criteria unchanged.
+- Rule captured in the whackagent plugin (`~/dev/whackagent`): `wa-wiki` update mode writes wiki-worthy changes only, `wa-grill` plans no wiki line for a local fix.
+- Review: deferred to `/wa-validate`. Hunks written by the main thread (inline).
+- Verify: docs only, no code changed; build + tests re-run green. Earlier runtime proof still holds.
