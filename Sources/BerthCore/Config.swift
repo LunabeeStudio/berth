@@ -138,6 +138,10 @@ public struct Config: Codable, Sendable {
         return config
     }
 
+    public static func defaultADBPath() -> String {
+        ((try? load()) ?? .init()).adbPath
+    }
+
     public func save(to url: URL = Paths.config) throws {
         let encoder: JSONEncoder = .init()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

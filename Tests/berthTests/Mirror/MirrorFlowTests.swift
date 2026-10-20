@@ -19,20 +19,6 @@ struct MirrorFlowTests {
         return directory
     }
 
-    private func makeFlow(
-        scrcpyDirectory: URL?,
-        launcher: FakeAndroidMirrorLauncher = .init(),
-        opener: FakeSimulatorMirrorOpener = .init()
-    ) -> MirrorFlow {
-        .init(
-            locator: .init(environment: ["PATH": scrcpyDirectory?.path ?? ""], fallbackDirectories: []),
-            launcher: launcher,
-            opener: opener,
-            adb: "/sdk/platform-tools/adb",
-            logs: URL(fileURLWithPath: "/tmp/berth-logs")
-        )
-    }
-
     @Test
     func `android launches scrcpy with control, the serial, the title and ADB`() async throws {
         let directory: URL = try Self.makeScrcpyDirectory()
@@ -98,5 +84,19 @@ struct MirrorFlowTests {
         await #expect(throws: MirrorError.failed(serial: "UDID-1", reason: "boom")) {
             try await makeFlow(scrcpyDirectory: nil, opener: opener).open(.ios(udid: "UDID-1"))
         }
+    }
+
+    private func makeFlow(
+        scrcpyDirectory: URL?,
+        launcher: FakeAndroidMirrorLauncher = .init(),
+        opener: FakeSimulatorMirrorOpener = .init()
+    ) -> MirrorFlow {
+        .init(
+            locator: .init(environment: ["PATH": scrcpyDirectory?.path ?? ""], fallbackDirectories: []),
+            launcher: launcher,
+            opener: opener,
+            adb: "/sdk/platform-tools/adb",
+            logs: URL(fileURLWithPath: "/tmp/berth-logs")
+        )
     }
 }

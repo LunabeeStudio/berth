@@ -2,7 +2,8 @@ import Foundation
 
 @testable import berth
 
-final class FakeAndroidMirrorLauncher: AndroidMirrorLauncher, @unchecked Sendable {
+@MainActor
+final class FakeAndroidMirrorLauncher: AndroidMirrorLauncher {
     struct Launch: Equatable {
         let executable: String
         let arguments: [String]

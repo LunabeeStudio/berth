@@ -11,7 +11,7 @@ enum MirrorError: Error, Equatable, CustomStringConvertible {
         switch self {
         case let .notABerthDevice(serial): "\(serial) is not a berth device"
         case let .notLeased(serial, state): "\(serial) is \(state.rawValue), claim it first"
-        case .scrcpyNotFound: "scrcpy not found: brew install scrcpy"
+        case .scrcpyNotFound: ScrcpyMirror.notFoundMessage
         case .deviceHubNotFound: "DeviceHub not found: needs Xcode 27"
         case let .failed(serial, reason): "mirror \(serial) failed: \(reason)"
         }

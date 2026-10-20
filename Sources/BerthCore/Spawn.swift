@@ -30,13 +30,12 @@ public enum Spawn {
         var argv: [UnsafeMutablePointer<CChar>?] = ([executable] + arguments).map { strdup($0) } + [nil]
         defer { argv.forEach { free($0) } }
 
-        var envp: [UnsafeMutablePointer<CChar>?] = environment.map { $0.map { strdup("\($0.key)=\($0.value)") } + [nil] } ?? []
+        let resolved: [String: String] = environment ?? ProcessInfo.processInfo.environment
+        var envp: [UnsafeMutablePointer<CChar>?] = resolved.map { strdup("\($0.key)=\($0.value)") } + [nil]
         defer { envp.forEach { free($0) } }
 
         var pid: pid_t = 0
-        let code: Int32 = environment == nil
-            ? posix_spawn(&pid, executable, &actions, &attributes, &argv, environ)
-            : posix_spawn(&pid, executable, &actions, &attributes, &argv, &envp)
+        let code: Int32 = posix_spawn(&pid, executable, &actions, &attributes, &argv, &envp)
         guard code == 0 else { throw SpawnError.failed(executable, code) }
         return pid
     }

@@ -2,7 +2,7 @@ import BerthCore
 
 enum MirrorResolver {
     static func resolve(serial: String, in snapshot: StateSnapshot) throws -> MirrorTarget {
-        guard let slot: Slot = snapshot.slots.first(where: { $0.serial == serial }) else {
+        guard let slot = snapshot.slots.first(where: { $0.serial == serial }) else {
             throw MirrorError.notABerthDevice(serial)
         }
         guard slot.state == .leased else { throw MirrorError.notLeased(serial: serial, state: slot.state) }

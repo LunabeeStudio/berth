@@ -101,10 +101,10 @@ final class MirrorController {
 
     private func start(serial: String, model: String, mode: MirrorMode) {
         guard let executable = locator.locate() else {
-            caption = "scrcpy not found: brew install scrcpy"
+            caption = ScrcpyMirror.notFoundMessage
             return
         }
-        let log: URL = logs.appending(path: "mirror-\(serial).log")
+        let log: URL = ScrcpyMirror.logURL(serial: serial, in: logs)
         let id: UUID = .init()
         do {
             let process: any MirrorProcess = try launcher.launch(

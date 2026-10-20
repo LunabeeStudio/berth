@@ -13,7 +13,7 @@ struct MirrorFlow {
         locator: ScrcpyLocator = .init(),
         launcher: any AndroidMirrorLauncher = SpawnMirrorLauncher(),
         opener: any SimulatorMirrorOpener = SystemSimulatorMirrorOpener(),
-        adb: String = ((try? Config.load()) ?? .init()).adbPath,
+        adb: String = Config.defaultADBPath(),
         logs: URL = Paths.logs
     ) {
         self.locator = locator
@@ -31,13 +31,13 @@ struct MirrorFlow {
     }
 
     private func openAndroid(serial: String, model: String) throws {
-        guard let scrcpy: String = locator.locate() else { throw MirrorError.scrcpyNotFound }
+        guard let scrcpy = locator.locate() else { throw MirrorError.scrcpyNotFound }
         let environment: [String: String] = ProcessInfo.processInfo.environment.merging(["ADB": adb]) { _, new in new }
         do {
             try launcher.launch(
                 executable: scrcpy,
                 arguments: ScrcpyArguments.make(serial: serial, model: model, mode: .control),
-                log: logs.appending(path: "mirror-\(serial).log"),
+                log: ScrcpyMirror.logURL(serial: serial, in: logs),
                 environment: environment
             )
         } catch {
@@ -46,7 +46,7 @@ struct MirrorFlow {
     }
 
     private func openSimulator(udid: String) async throws {
-        guard let url: URL = DeviceHubURL.open(udid: udid), opener.canOpen(url) else { throw MirrorError.deviceHubNotFound }
+        guard let url = DeviceHubURL.open(udid: udid), opener.canOpen(url) else { throw MirrorError.deviceHubNotFound }
         do {
             try await opener.open(url)
         } catch {

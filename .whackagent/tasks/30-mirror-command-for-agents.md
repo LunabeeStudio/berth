@@ -1,6 +1,6 @@
 ---
 issue: 30
-phase: review
+phase: validated
 type: feature
 wiki: [[cli]], [[claude-code]], [[architecture]]
 note: Depends on #29 (iOS DeviceHub mirror): its DeviceHub URL builder and opener move to BerthCore here. Code after #29 merges.
@@ -82,7 +82,25 @@ Round 1, 2026-10-20. One implementer, 3 bricks, rebased on main after #31 (#29) 
 
 ## Review
 
-Not run yet: `review.when: on_validation`, so the verifier runs at `/wa-validate`.
+### Round validation, 2026-10-21
+
+One verifier over the ticket range (32 files). All four lenses ran: style, elegance, structure and correctness. No project tools are configured. Correctness: no bug found. Every acceptance criterion that code can show is met.
+
+Autofix took 3 rounds and ended clean.
+- Round 1, 9 minor findings, all fixed:
+  - [structure] The log name `mirror-<serial>.log`, the scrcpy not-found text and the log-directory creation were each written twice, once in the CLI and once in `berth-bar`. They now live in `BerthCore/Mirror/Scrcpy/ScrcpyMirror.swift`.
+  - [structure] The default SDK adb lookup was written twice. It is now `Config.defaultADBPath()`, and `SystemMirrorLauncher.defaultADB()` is gone.
+  - [structure] The `Tests/BerthBarTests/Mirror/DeviceHub/` folder mirrored no source folder any more. Its fake moved up to `Tests/BerthBarTests/Mirror/`.
+  - [style] `struct Mirror` shadowed `Swift.Mirror`. It is now `MirrorCommand` (`commandName: "mirror"`) in `Commands/MirrorCommand.swift`.
+  - [style] Member order in `MirrorCommand` and `MirrorFlowTests`, and type annotations on optional bindings, now follow the style module.
+  - [elegance] `AndroidMirrorLauncher`, `SpawnMirrorLauncher` and the fake are `@MainActor`, so the false `@unchecked Sendable` on the fake is gone.
+  - [elegance] `Spawn.detached` always builds `envp` and makes a single `posix_spawn` call.
+- Round 2, 2 minor findings, both fixed: a static test helper was out of order, and `Config.defaultAdbPath`, a property that read the disk, became `defaultADBPath()`.
+- Round 3, 1 minor finding, fixed: `defaultADBPath()` moved next to the other static methods of `Config`.
+
+The last round is a member move that was checked by hand. Build and all 4 test suites are green after each round. The runtime checks were run again after round 1.
+
+Verdict: clean. Autofix changed code after the round 1 delivery, so the PR stays draft until a human retest.
 
 ## Verification
 
