@@ -28,7 +28,7 @@ struct StatusPanelRenderTests {
         return .live(.mock(slots: [slot], queue: [waiter], generatedAt: now))
     }
 
-    private static func render(_ state: StatusState, named name: String) throws -> NSBitmapImageRep {
+    private static func render(_ state: StatusState, named name: String, appearance: NSAppearance.Name = .aqua) throws -> NSBitmapImageRep {
         let model: StatusModel = .init(state: state, now: now)
         let login: LaunchAtLogin = .init(
             agent: .temporary(label: "com.berth.bar.render"),
@@ -36,7 +36,7 @@ struct StatusPanelRenderTests {
             environment: [:]
         )
         let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login))
-        host.appearance = NSAppearance(named: .aqua)
+        host.appearance = NSAppearance(named: appearance)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
         let image: NSBitmapImageRep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
@@ -58,6 +58,13 @@ struct StatusPanelRenderTests {
         #expect(image.size.width == 620)
     }
 
+    private static func expectOpaque(_ image: NSBitmapImageRep) {
+        let translucent: Int = (0 ..< image.pixelsHigh).reduce(0) { total, y in
+            total + (0 ..< image.pixelsWide).count { x in image.colorAt(x: x, y: y)?.alphaComponent != 1 }
+        }
+        #expect(translucent == 0)
+    }
+
     @Test
     func `connecting renders the panel`() throws {
         Self.expectPanelSized(try Self.render(.connecting, named: "connecting"))
@@ -73,8 +80,10 @@ struct StatusPanelRenderTests {
         Self.expectPanelSized(try Self.render(.live(.mock(generatedAt: Self.now)), named: "live-empty"))
     }
 
-    @Test
-    func `live with a leased emulator and a queued claim renders the panel`() throws {
-        Self.expectPanelSized(try Self.render(Self.busy(), named: "live-busy"))
+    @Test(arguments: [(NSAppearance.Name.aqua, "live-busy"), (.darkAqua, "live-busy-dark")])
+    func `panel is opaque in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        let image: NSBitmapImageRep = try Self.render(Self.busy(), named: name, appearance: appearance)
+        Self.expectPanelSized(image)
+        Self.expectOpaque(image)
     }
 }
