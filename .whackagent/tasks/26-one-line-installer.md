@@ -1,6 +1,6 @@
 ---
 issue: 26
-phase:
+phase: validated
 type: feature
 wiki: [[release]]
 note: User request (2026-10-20): One line installer in readme. Grilled unattended by autopilot.
@@ -40,8 +40,47 @@ Decisions:
 
 ## Implementation
 
+Autopilot run, 2026-10-20. One brick, then 2 autofix rounds.
+
+- `install.sh` at the repository root, executable, bash with `set -euo pipefail`. The body is in `main`, and the file ends with `main "$@"`, so a cut-off download runs nothing.
+- Platform check: `Darwin` + `arm64`. The script also accepts `sysctl -in hw.optional.arm64` = `1`, so a Rosetta shell is not refused.
+- Download and check: the archive and its `.sha256` come from `releases/latest/download/` into a `mktemp -d` dir, then `shasum -a 256 -c`. A mismatch prints `checksum mismatch …, nothing installed` and exits 1.
+- Install: `${BERTH_INSTALL_DIR:-$HOME/.local/bin}`, made absolute. `berth` and `berth-bar` are both staged in that dir first, then both renamed with `mv -f`. The EXIT trap removes the work dir and any staged file.
+- Output: `berth --version`, the PATH line when the dir is not on `PATH`, and the next steps.
+- Test overrides, named in the header: `BERTH_RELEASE_URL`, `BERTH_UNAME_S`, `BERTH_UNAME_M`.
+- README `## Install`:
+  - opens with the one line plus prepare/status, and a paragraph on what it does
+  - a fenced `| BERTH_INSTALL_DIR=<dir> bash` example
+  - "Without the script:" keeps the manual `curl | tar` line
+- Wiki `release`: `install.sh` is listed as a consumer of the asset permalink.
+
 ## Review
 
+Round `validation (autopilot)`. LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓.
+
+- Pass 1: 9 minor findings, all fixed.
+  - stage both binaries, then rename both
+  - trap cleans up staged files
+  - `main` wrapper against a truncated pipe
+  - absolute dir (relative path, trailing slash)
+  - test overrides documented
+  - Rosetta accepted
+  - wiki `release` updated
+  - README shows where `BERTH_INSTALL_DIR` goes
+  - `binaries` array
+- Pass 2: 1 minor (README fenced block), fixed.
+- Pass 3: clean.
+
 ## Verification
+
+- `bash -n install.sh` ✅, also under macOS `/bin/bash` 3.2. shellcheck is not installed.
+- Real network, latest release (0.2.0), into a temp dir, through `cat install.sh | bash`: both binaries installed with mode 755, `berth --version` printed `0.2.0`, and the PATH line and next steps were printed. ✅ Run again by the PM on the final script.
+- Checksum mismatch (`BERTH_RELEASE_URL=file://…`, bad `.sha256`): exit 1, the existing binaries are byte-identical, and no stray file is left in the dir. ✅
+- Platform: `BERTH_UNAME_S/M` = `Linux x86_64` and `Darwin x86_64` both exit 1 with the Darwin arm64 message, and nothing is created. A `uname` stub reporting x86_64 with the real sysctl returning 1 installs (Rosetta path). Real Rosetta was not tested: this Mac has no x86_64 execution. ✅
+- Rename install: after a reinstall the path gets a new inode, while an fd held open on the old file keeps the old inode at full size. ✅
+- Truncated pipe (`head -c 900 install.sh | bash`): syntax error, exit 2, nothing run or created. ✅
+- Relative `BERTH_INSTALL_DIR` gives absolute output. A trailing slash already on PATH prints no hint. ✅
+- The user's real `~/.local/bin` was never touched.
+- Not provable before merge: the raw `main` URL serves `install.sh` only once this is on `main`.
 
 ## Feedback
