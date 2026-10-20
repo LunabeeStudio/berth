@@ -6,6 +6,7 @@ struct StatusPanel: View {
     let model: StatusModel
     @Bindable var launchAtLogin: LaunchAtLogin
     let launcher: EmulatorLauncher
+    let mirror: MirrorController
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -25,7 +26,7 @@ struct StatusPanel: View {
                 .keyboardShortcut("q")
         }
         .padding(12)
-        .frame(width: 620)
+        .frame(width: 650)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -38,7 +39,7 @@ struct StatusPanel: View {
             Text("none running").foregroundStyle(.secondary)
         }
         ForEach(snapshot.slots) { slot in
-            EmulatorRow(slot: slot, now: model.now, launcher: launcher)
+            EmulatorRow(slot: slot, now: model.now, pool: snapshot.pool, launcher: launcher, mirror: mirror)
         }
         Text("Queue").font(.subheadline.bold())
         if snapshot.queue.isEmpty {
@@ -62,6 +63,9 @@ struct StatusPanel: View {
         }
         if let error = launcher.error {
             Text(error).font(.caption).foregroundStyle(.secondary)
+        }
+        if let caption = mirror.caption {
+            Text(caption).font(.caption).foregroundStyle(.secondary)
         }
     }
 }

@@ -4,7 +4,9 @@ import SwiftUI
 struct EmulatorRow: View {
     let slot: Slot
     let now: Date
+    let pool: [PoolEntry]
     let launcher: EmulatorLauncher
+    let mirror: MirrorController
 
     var body: some View {
         HStack(spacing: 8) {
@@ -19,9 +21,19 @@ struct EmulatorRow: View {
             Text(slot.lease?.label ?? "—").frame(width: 70, alignment: .leading)
             Text(DurationFormat.clock(now.timeIntervalSince(slot.lease?.grantedAt ?? slot.stateSince))).monospacedDigit().frame(width: 55, alignment: .leading)
             remaining.frame(width: 60, alignment: .leading)
+            mirrorButton.frame(width: 22)
         }
         .lineLimit(1)
         .font(.callout)
+    }
+
+    @ViewBuilder
+    private var mirrorButton: some View {
+        if MirrorEligibility.showsMirrorButton(slot, pool: pool) {
+            Button { mirror.open(slot) } label: { Image(systemName: "play.display") }
+                .buttonStyle(.borderless)
+                .help("Mirror")
+        }
     }
 
     @ViewBuilder

@@ -51,4 +51,31 @@ struct ConfigTests {
         let config: Config = try JSONDecoder().decode(Config.self, from: Data(#"{"autoUpdate": false}"#.utf8))
         #expect(!config.autoUpdate)
     }
+
+    @Test
+    func `load returns nil when the file is missing and decodes it when present`() throws {
+        let url: URL = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).json")
+        #expect(try Config.load(from: url) == nil)
+
+        try Data(#"{"maxRunning": 7}"#.utf8).write(to: url)
+        #expect(try Config.load(from: url)?.maxRunning == 7)
+    }
+
+    @Test
+    func `load throws on a malformed file`() throws {
+        let url: URL = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).json")
+        try Data("nope".utf8).write(to: url)
+
+        #expect(throws: (any Error).self) { try Config.load(from: url) }
+    }
+
+    @Test
+    func `pool lookup finds entries and defaults to android`() {
+        let pool: [PoolEntry] = [.init(name: "Pixel_9", maxInstances: 2), .init(name: "iPhone 17", platform: .ios, maxInstances: 1)]
+
+        #expect(pool.entry(for: "Pixel_9")?.maxInstances == 2)
+        #expect(pool.entry(for: "none") == nil)
+        #expect(pool.platform(of: "iPhone 17") == .ios)
+        #expect(pool.platform(of: "none") == .android)
+    }
 }

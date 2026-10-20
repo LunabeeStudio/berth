@@ -64,7 +64,7 @@ Without `berth` on PATH the hook does nothing. Disable the plugin in `/plugin` t
 
 ## Menu bar
 
-`berth-bar` is a menu bar item showing what is running: label `<leased>/<running>` (plus `+N` when claims wait), panel with emulators and the queue. It can also launch an emulator for you.
+`berth-bar` is a menu bar item showing what is running: label `<leased>/<running>` (plus `+N` when claims wait), panel with emulators and the queue. It can also launch an emulator for you and mirror a headless one.
 
 ```bash
 berth-bar &                                 # no Dock icon; Quit is in the panel
@@ -77,6 +77,8 @@ The panel has a "Launch at login" checkbox. It writes `~/Library/LaunchAgents/co
 The "Launch emulator" menu lists the Android AVDs of the pool and shows only while the daemon runs. Choosing one takes a free windowed instance of that AVD, else boots a new one with a visible window, leased to you (label `you`). It is a normal claim: it waits in the queue when the pool is full, counts toward `maxRunning` and `maxInstances`, and no agent is ever given it. The lease never expires and is never reclaimed, even after `berth-bar` quits. `berth stop-all` leaves it running; `berth stop <serial>` stops it. A refused launch shows its reason under the menu. Android only.
 
 The emulator row shows a "Release" button instead of a remaining time. Release returns the emulator to the pool as free, still running with its window: any claim may take it as is, with no reset. When an agent releases it, it is reset by restart and the window comes back. A free windowed emulator is stopped by idle shutdown like any other. Closing its window stops it and berth notices.
+
+Headless Android emulator rows, free or leased, show a Mirror button (`play.display`) that opens a scrcpy window on that emulator. scrcpy is an optional dependency (`brew install scrcpy`): `berth-bar` looks for it on `PATH`, then in `/opt/homebrew/bin` and `/usr/local/bin`, and runs it with the SDK adb. Input works only on a free emulator; a leased one is view only (the window title ends with `(view only)`), and a free mirror switches to view only when an agent claims the emulator. An emulator touched through a mirror goes to the next claim as is, with no reset. A reset or stop closes the window. There is one window per emulator: clicking again brings it to front. Quit closes the mirrors `berth-bar` opened. Without scrcpy the panel shows `scrcpy not found: brew install scrcpy`; a scrcpy that fails shows `mirror <serial> failed, see <log>`, with its output in `~/Library/Logs/berth/mirror-<serial>.log`.
 
 It never starts the daemon: while the daemon is down the panel says so, and it reconnects on its own once the daemon runs.
 
