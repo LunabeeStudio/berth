@@ -5,6 +5,7 @@ import SwiftUI
 struct StatusPanel: View {
     let model: StatusModel
     @Bindable var launchAtLogin: LaunchAtLogin
+    @Bindable var autoUpdate: AutoUpdateSetting
     let launcher: EmulatorLauncher
     let mirror: MirrorController
 
@@ -20,8 +21,13 @@ struct StatusPanel: View {
                 Text(reason).font(.caption).foregroundStyle(.secondary)
             }
             Divider()
-            Toggle("Launch at login", isOn: $launchAtLogin.isEnabled)
-                .toggleStyle(.checkbox)
+            HStack(spacing: 16) {
+                Toggle("Launch at login", isOn: $launchAtLogin.isEnabled)
+                    .toggleStyle(.checkbox)
+                Toggle("Auto update", isOn: $autoUpdate.isEnabled)
+                    .toggleStyle(.checkbox)
+                    .disabled(!autoUpdate.isAvailable)
+            }
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
         }

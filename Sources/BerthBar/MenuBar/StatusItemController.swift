@@ -6,18 +6,20 @@ import SwiftUI
 final class StatusItemController: NSObject {
     private let model: StatusModel
     private let launchAtLogin: LaunchAtLogin
+    private let autoUpdate: AutoUpdateSetting
     private let launcher: EmulatorLauncher
     private let mirror: MirrorController
     private let item: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover: NSPopover = .init()
 
-    init(model: StatusModel, launchAtLogin: LaunchAtLogin, launcher: EmulatorLauncher, mirror: MirrorController) {
+    init(model: StatusModel, launchAtLogin: LaunchAtLogin, autoUpdate: AutoUpdateSetting, launcher: EmulatorLauncher, mirror: MirrorController) {
         self.model = model
         self.launchAtLogin = launchAtLogin
+        self.autoUpdate = autoUpdate
         self.launcher = launcher
         self.mirror = mirror
         super.init()
-        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, launcher: launcher, mirror: mirror))
+        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, autoUpdate: autoUpdate, launcher: launcher, mirror: mirror))
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
         popover.behavior = .transient
@@ -33,6 +35,7 @@ final class StatusItemController: NSObject {
             popover.performClose(nil)
         } else {
             launchAtLogin.refresh()
+            autoUpdate.refresh()
             NSApp.activate()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }

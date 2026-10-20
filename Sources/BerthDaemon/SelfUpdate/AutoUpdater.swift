@@ -6,11 +6,12 @@ struct AutoUpdater: Sendable {
     let delay: Duration
     let interval: Duration
     let log: @Sendable (String) -> Void
-    private let isEnabled: Bool
+    let isAutoUpdateEnabled: @Sendable () -> Bool
+    private let isReleaseBuild: Bool
 
     init(
         source: any UpdateSource,
-        autoUpdate: Bool,
+        isAutoUpdateEnabled: @escaping @Sendable () -> Bool,
         currentVersion: String = BerthVersion.current,
         delay: Duration = .seconds(60),
         interval: Duration = .seconds(24 * 3600),
@@ -20,11 +21,12 @@ struct AutoUpdater: Sendable {
         self.delay = delay
         self.interval = interval
         self.log = log
-        isEnabled = autoUpdate && SemanticVersion(currentVersion) != nil
+        self.isAutoUpdateEnabled = isAutoUpdateEnabled
+        isReleaseBuild = SemanticVersion(currentVersion) != nil
     }
 
     func run() async {
-        guard isEnabled else { return }
+        guard isReleaseBuild else { return }
         try? await Task.sleep(for: delay)
         while !Task.isCancelled {
             await checkOnce()
@@ -33,7 +35,7 @@ struct AutoUpdater: Sendable {
     }
 
     func checkOnce() async {
-        guard isEnabled else { return }
+        guard isReleaseBuild, isAutoUpdateEnabled() else { return }
         do {
             guard case let .available(current, latest, release) = try await source.check() else { return }
             try await source.install(release)

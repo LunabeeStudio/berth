@@ -17,6 +17,11 @@ final class StubUpdateSource: UpdateSource {
         return .init(.success(.available(current: .init(major: 1, minor: 0, patch: 0), latest: .init(major: 2, minor: 0, patch: 0), release: release)))
     }
 
+    static func upToDate() -> StubUpdateSource {
+        let version: SemanticVersion = .init(major: 1, minor: 0, patch: 0)
+        return .init(.success(.upToDate(current: version, latest: version)))
+    }
+
     func check() async throws -> UpdateCheck {
         try state.withLock {
             $0.checks += 1

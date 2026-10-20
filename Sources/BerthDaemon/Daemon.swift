@@ -52,7 +52,11 @@ public enum Daemon {
             }
         }
 
-        let autoUpdater: AutoUpdater = .init(source: Updater(executablePath: executable), autoUpdate: config.autoUpdate)
+        let autoUpdateFlag: AutoUpdateFlag = .init(initial: config.autoUpdate)
+        let autoUpdater: AutoUpdater = .init(
+            source: Updater(executablePath: executable),
+            isAutoUpdateEnabled: { autoUpdateFlag.isEnabled() }
+        )
         Task { await autoUpdater.run() }
 
         let server = Server(broker: broker) {

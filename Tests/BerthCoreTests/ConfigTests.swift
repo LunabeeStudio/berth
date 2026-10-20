@@ -4,6 +4,10 @@ import Testing
 
 @Suite
 struct ConfigTests {
+    private static func temporaryURL() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("berth-config-\(UUID().uuidString).json")
+    }
+
     @Test
     func `decodes android and ios pool entries`() throws {
         let json = #"{"pool": [{"avd": "Pixel_9", "maxInstances": 2}, {"simulator": "iPhone 17", "maxInstances": 3}]}"#
@@ -77,5 +81,57 @@ struct ConfigTests {
         #expect(pool.entry(for: "none") == nil)
         #expect(pool.platform(of: "iPhone 17") == .ios)
         #expect(pool.platform(of: "none") == .android)
+    }
+
+    @Test
+    func `save writes sorted pretty JSON that loads back`() throws {
+        let url: URL = Self.temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let config: Config = .init(maxRunning: 5, autoUpdate: false, pool: [PoolEntry(name: "Pixel_9", maxInstances: 2)])
+
+        try config.save(to: url)
+
+        let text: String = String(decoding: try Data(contentsOf: url), as: UTF8.self)
+        #expect(text.contains("\n  \"autoUpdate\" : false"))
+        let autoUpdateIndex: Range<String.Index> = try #require(text.range(of: "autoUpdate"))
+        let maxRunningIndex: Range<String.Index> = try #require(text.range(of: "maxRunning"))
+        #expect(autoUpdateIndex.lowerBound < maxRunningIndex.lowerBound)
+        let loaded: Config = try #require(try Config.load(from: url))
+        #expect(loaded.maxRunning == 5)
+        #expect(!loaded.autoUpdate)
+        #expect(loaded.pool == config.pool)
+    }
+
+    @Test(arguments: ["[1, 2]", #"{"pool": [{"maxInstances": 1}]}"#, "{ nope"])
+    func `setAutoUpdate throws on undecodable JSON and leaves the file untouched`(json: String) throws {
+        let url: URL = Self.temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(json.utf8).write(to: url)
+
+        #expect(throws: (any Error).self) { try Config.setAutoUpdate(false, at: url) }
+
+        #expect(try Data(contentsOf: url) == Data(json.utf8))
+    }
+
+    @Test
+    func `setAutoUpdate throws on a missing file and creates nothing`() {
+        let url: URL = Self.temporaryURL()
+
+        #expect(throws: (any Error).self) { try Config.setAutoUpdate(false, at: url) }
+
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test
+    func `setAutoUpdate keeps unknown keys`() throws {
+        let url: URL = Self.temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(#"{"future": {"a": [1, 2]}, "maxRunning": 3}"#.utf8).write(to: url)
+
+        try Config.setAutoUpdate(false, at: url)
+
+        let object: [String: Any] = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let expected: [String: Any] = ["future": ["a": [1, 2]], "maxRunning": 3, "autoUpdate": false]
+        #expect(NSDictionary(dictionary: object).isEqual(to: expected))
     }
 }

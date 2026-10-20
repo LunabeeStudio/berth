@@ -44,7 +44,7 @@ cp .build/release/berth .build/release/berth-bar ~/.local/bin/
 | `berth guard` | Claude Code hook: blocks device commands outside a lease (reads the hook payload on stdin) |
 | `berth stop-all` | stop every emulator berth started |
 | `berth update [--check]` | install the latest GitHub release over `berth` (and the `berth-bar` beside it); `--check` only reports the running and latest versions |
-| `berth daemon stop` | stop the daemon (emulators keep running and are adopted on restart); needed after editing the config |
+| `berth daemon stop` | stop the daemon (emulators keep running and are adopted on restart); needed after editing the config (except `autoUpdate`) |
 
 Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS.md` (Claude Code users: see below).
 
@@ -73,6 +73,8 @@ berth-bar &                                 # no Dock icon; Quit is in the panel
 Installed with `berth` (see Install). From a source checkout: `swift build -c release && .build/release/berth-bar &`.
 
 The panel has a "Launch at login" checkbox. It writes `~/Library/LaunchAgents/com.berth.bar.plist` (label `com.berth.bar`), which keeps the path of the binary: toggle it off and on after moving `berth-bar`.
+
+Next to it, an "Auto update" checkbox writes `autoUpdate` in `config.json`. It is disabled (and shown checked) until the daemon has created that file, and while the file cannot be read.
 
 The "Launch emulator" menu lists the Android AVDs of the pool and shows only while the daemon runs. Choosing one takes a free windowed instance of that AVD, else boots a new one with a visible window, leased to you (label `you`). It is a normal claim: it waits in the queue when the pool is full, counts toward `maxRunning` and `maxInstances`, and no agent is ever given it. The lease never expires and is never reclaimed, even after `berth-bar` quits. `berth stop-all` leaves it running; `berth stop <serial>` stops it. A refused launch shows its reason under the menu. Android only.
 
@@ -128,7 +130,7 @@ It never starts the daemon: while the daemon is down the panel says so, and it r
 (the install directory must be writable). With `autoUpdate` true (the default, also when the key is absent) the daemon does the
 same about a minute after it starts and then every 24 h, and logs the outcome in `daemon.log`. After the binary changes on disk the
 daemon restarts itself in place once no lease, waiting claim or booting emulator is left; emulators and leases are kept.
-Set `"autoUpdate": false` to opt out. Local `dev` builds never update. A running `berth-bar` keeps the old version until you relaunch it.
+Untick "Auto update" in the `berth-bar` panel or set `"autoUpdate": false` to opt out; both edit the same key. The daemon reads the key before each check, so changing it needs no restart. Local `dev` builds never update. A running `berth-bar` keeps the old version until you relaunch it.
 
 Logs: `~/Library/Logs/berth/` (`daemon.log`, one file per emulator). `BERTH_HOME` relocates config, state,
 socket and logs (keep it short: Unix socket paths are limited to 104 bytes).

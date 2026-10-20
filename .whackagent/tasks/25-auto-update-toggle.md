@@ -1,6 +1,6 @@
 ---
 issue: 25
-phase:
+phase: validated
 type: feature
 wiki: [[update]], [[architecture]]
 note: User request (2026-10-20): add auto-update entry next to launch at login in tray. Grilled unattended by autopilot.
@@ -36,8 +36,72 @@ Decisions:
 
 ## Implementation
 
+Autopilot run, 2026-10-20. One implementer, 2 bricks, then 3 autofix rounds.
+
+- Brick 1 (daemon):
+  - `AutoUpdater` takes `isAutoUpdateEnabled: @Sendable () -> Bool`, called before each check.
+  - On a dev build, `run()` returns at once and nothing is checked.
+  - A release daemon keeps its loop running while the setting is off.
+  - `SelfUpdate/AutoUpdateFlag` (new) reads `autoUpdate` from `config.json`. It keeps the last good value (seeded from the startup config) when the file is missing or unreadable, and logs an unreadable file.
+  - `Daemon.swift` passes `AutoUpdateFlag.isEnabled`.
+- Brick 2 (berth-bar):
+  - `Update/AutoUpdateSetting` (new): `@Observable @MainActor`, with `isEnabled`, a tracked `isAvailable` and `refresh()`.
+  - `StatusPanel`: an `HStack` with "Launch at login" and "Auto update" (checkboxes), disabled when the config is unavailable, shown in every state.
+  - `StatusItemController` refreshes it when the popover opens. `BerthBarDelegate` creates it.
+- BerthCore `Config`:
+  - `save(to:)` (pretty, sorted, atomic), which `loadOrCreate` reuses.
+  - `setAutoUpdate(_:at:)`: decodes the file as `Config` first, then edits the raw JSON key `autoUpdate` only, keeping unknown and absent keys, with an atomic write. It never creates the file.
+- Tests:
+  - `AutoUpdaterTests`: turned on → a newer release is installed, turned off → checks stop, dev never checks.
+  - `AutoUpdateFlagTests`.
+  - `AutoUpdateSettingTests`: raw JSON compared before and after, plus the unavailable cases.
+  - `ConfigTests`: `save`, and `setAutoUpdate` with undecodable, missing and unknown-key files.
+  - Render tests with the checkbox on, off and disabled, in light and dark.
+  - Shared `LockedLines` helper.
+- README: the Menu bar sentence, the Updates paragraph (checkbox or key, no restart), and `berth daemon stop` marked "except `autoUpdate`".
+- Wiki: `update` and `architecture`.
+
 ## Review
 
+Round `validation (autopilot)`. LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓.
+
+- Pass 1: 1 major, 10 minor. The major one: the toggle re-encoded `Config` and dropped unknown keys; it was replaced by a raw JSON edit. The minor ones:
+  - a malformed config forced `true`
+  - `?? nil` noise
+  - `isAvailable` was not tracked
+  - the "turned on" test did not check an install
+  - the "keeps other keys" test was partial
+  - README rows for `berth daemon stop` and the unreadable file
+  - the wiki
+  - force unwraps
+  - leftover temp files
+- Pass 2: 7 minor:
+  - `setAutoUpdate` wrote undecodable files
+  - wrong error type
+  - hard-coded key string
+  - no Core tests for `setAutoUpdate`
+  - the daemon closure was untestable, moved to `AutoUpdateFlag`
+  - member order
+  - stale wiki lines
+- Pass 3: 2 minor test cleanups (a duplicate log helper and the helper's placement).
+- Pass 4: clean. All findings were fixed; none were accepted.
+
 ## Verification
+
+- `swift build` ✅. Full `swift test` ✅: 37, 83, 36 and 57 tests, all passed. It needs `DEVELOPER_DIR=/Applications/Xcode-27.1.0.app/Contents/Developer`.
+- Daemon logic by unit tests:
+  - setting off → no check
+  - off → on with the same daemon → a newer release is installed
+  - on → off → checks stop
+  - dev build → never checks
+  - unreadable or missing config → last good value
+- Bar by unit tests:
+  - a missing key reads checked
+  - a toggle changes only `autoUpdate` in the raw JSON
+  - missing or undecodable file → disabled, nothing written
+  - `refresh()` picks up a hand edit
+- Render PNGs checked: Auto update to the right of Launch at login, checked, unchecked and disabled, light and dark.
+- Runtime check per `CLAUDE.md#Desktop proofs`, re-run on the final code. Own `.build/debug/berth-bar` launched with `BERTH_HOME=/tmp/bb25` and a hand-written config, then stopped by pid. The frontmost app was unchanged (Google Chrome), and the config file was byte-identical afterwards, so the bar does not write on launch.
+- Not run by agent: clicking the checkbox, which needs the popover open (human check), and a real daemon picking up the change at its 24 h check (proven by unit tests with short intervals).
 
 ## Feedback

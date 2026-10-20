@@ -111,6 +111,17 @@ public struct Config: Codable, Sendable {
         return try JSONDecoder().decode(Config.self, from: data)
     }
 
+    public static func setAutoUpdate(_ value: Bool, at url: URL = Paths.config) throws {
+        let data: Data = try Data(contentsOf: url)
+        _ = try JSONDecoder().decode(Config.self, from: data)
+        guard var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "config is not a JSON object"))
+        }
+        object[CodingKeys.autoUpdate.stringValue] = value
+        let updated: Data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+        try updated.write(to: url, options: .atomic)
+    }
+
     public static func loadOrCreate(discoverModels: (String) async -> [String]) async throws -> Config {
         if let config = try load() {
             return config
@@ -119,9 +130,13 @@ public struct Config: Codable, Sendable {
         config.sdkRoot = config.resolvedSDKRoot
         config.pool = await discoverModels(config.resolvedSDKRoot).map { PoolEntry(name: $0, maxInstances: 2) }
         try Paths.ensureDirectories()
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(config).write(to: Paths.config, options: .atomic)
+        try config.save()
         return config
+    }
+
+    public func save(to url: URL = Paths.config) throws {
+        let encoder: JSONEncoder = .init()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(self).write(to: url, options: .atomic)
     }
 }
