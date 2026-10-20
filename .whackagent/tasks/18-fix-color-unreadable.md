@@ -1,6 +1,6 @@
 ---
 issue: 18
-phase: review
+phase: validated
 wiki:
 note:
 created: 2026-10-19
@@ -41,12 +41,19 @@ Build: `swift build` green. Tests: `swift test` green, 0 failures.
 
 ## Review
 
-### validation (autopilot) — 2026-10-19
+### Round validation (autopilot) — 2026-10-19
 
 Round 1: 3 minor findings, all in the render test — structure: unused `appearance` parameter on `writePNG`; elegance: light opaque test overwrote the `live-busy` PNG and skipped the size check; elegance: nested loops with a mutable counter in `expectOpaque`.
 Autofix: parameter removed; one parameterized test for both appearances; `reduce` + `count(where:)`.
 Round 2: 3 fixed; 1 new minor (structure): the old light live-busy test duplicated the parameterized `.aqua` case. Autofix: old test dropped, light argument named `live-busy`.
 Round 3: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean.
+
+### Round validation — 2026-10-20
+
+Scope: ticket range (`160c2dc^`), code + task file; feedback round 1 hunks flagged inline.
+Round 1: code clean; 3 minor findings in the task file — style: round 1 feedback block not in the sibling bold-label format; structure: a line named a machine-local path of another repo; style: review heading not `### Round validation (autopilot)`.
+Fix (main thread, task file only): block rewritten with bold labels, path line dropped, heading renamed.
+Round 2: 3 fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict: clean. Wiki: nothing to sync (local fix).
 
 ## Verification
 
@@ -61,10 +68,14 @@ Round 3: fixed, no new finding. Lenses: style ✓ · elegance ✓ · structure �
 
 ### Round 1 — 2026-10-20
 
-Asked (PR review): "A simple color change should not fill .whackagent/wiki/architecture.md"
+**Asked**: "A simple color change should not fill .whackagent/wiki/architecture.md"
 
-- Triage: adjustment (drop the wiki line) + rule (no wiki line for local fixes).
-- Change (inline): `.whackagent/wiki/architecture.md` back to `main`, no line for #18. Task file: `wiki:` empty, Docs decision updated. Acceptance criteria unchanged.
-- Rule captured in the whackagent plugin (`~/dev/whackagent`): `wa-wiki` update mode writes wiki-worthy changes only, `wa-grill` plans no wiki line for a local fix.
-- Review: deferred to `/wa-validate`. Hunks written by the main thread (inline).
-- Verify: docs only, no code changed; build + tests re-run green. Earlier runtime proof still holds.
+**Triage**: adjustment, plus a rule: a local fix gets no wiki line. The acceptance criteria are unchanged. The rule is recorded in the whackagent plugin, not in this project.
+
+**What changed** (route: inline):
+- `.whackagent/wiki/architecture.md` is back to `main`: no line for #18.
+- Task file: `wiki:` is empty, and the Docs decision says no wiki line.
+
+**Review**: see `## Review`, round validation 2026-10-20: clean.
+
+**Verify**: docs only, no code changed. `swift build` and `swift test` green. The earlier runtime proof still holds.
