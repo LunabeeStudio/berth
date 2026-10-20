@@ -1,6 +1,6 @@
 {
   "name": "berth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Berth rules for agents plus a guard hook that blocks device commands outside a berth lease.",
   "author": { "name": "Lunabee Studio" },
   "license": "MIT",
