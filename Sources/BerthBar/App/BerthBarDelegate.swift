@@ -2,6 +2,7 @@ import AppKit
 
 @MainActor
 final class BerthBarDelegate: NSObject, NSApplicationDelegate {
+    private let mirror: MirrorController = .init()
     private var controller: StatusItemController?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -9,6 +10,12 @@ final class BerthBarDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        controller = .init(model: .init(), launchAtLogin: .init(), launcher: .init())
+        let model: StatusModel = .init()
+        mirror.observe(model)
+        controller = .init(model: model, launchAtLogin: .init(), launcher: .init(), mirror: mirror)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        mirror.stopAll()
     }
 }

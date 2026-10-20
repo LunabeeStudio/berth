@@ -47,14 +47,30 @@ struct StatusPanelRenderTests {
         return .live(.mock(slots: [agent, own], pool: pool, generatedAt: now))
     }
 
-    private static func render(_ state: StatusState, named name: String, appearance: NSAppearance.Name = .aqua) throws -> NSBitmapImageRep {
+    private static func mirrorable() -> StatusState {
+        let lease: Lease = .mock(owner: .mock(pid: 4242, name: "claude"), label: "demo", grantedAt: now.addingTimeInterval(-9), expiresAt: now.addingTimeInterval(59 * 60))
+        let free: Slot = .mock(serial: "emulator-5554", model: "Pixel_8", state: .free)
+        let leased: Slot = .mock(serial: "emulator-5556", model: "Pixel_9", state: .leased, lease: lease)
+        let windowed: Slot = .mock(serial: "emulator-5558", model: "Pixel_9", state: .leased, lease: .mock(owner: .mock(pid: 99, name: "berth-bar"), label: "you", grantedAt: now.addingTimeInterval(-120), expiresAt: .distantFuture, manual: true), windowed: true)
+        let simulator: Slot = .mock(serial: "UDID-1", model: "iPhone 17", state: .free)
+        let resetting: Slot = .mock(serial: "emulator-5560", model: "Pixel_8", state: .resetting)
+        let pool: [PoolEntry] = [.init(name: "Pixel_8", maxInstances: 2), .init(name: "Pixel_9", maxInstances: 2), .init(name: "iPhone 17", platform: .ios, maxInstances: 1)]
+        return .live(.mock(slots: [free, leased, windowed, simulator, resetting], pool: pool, generatedAt: now))
+    }
+
+    private static func render(
+        _ state: StatusState,
+        named name: String,
+        appearance: NSAppearance.Name = .aqua,
+        mirror: MirrorController = .init()
+    ) throws -> NSBitmapImageRep {
         let model: StatusModel = .init(state: state, now: now)
         let login: LaunchAtLogin = .init(
             agent: .temporary(label: "com.berth.bar.render"),
             executable: "/opt/berth-bar",
             environment: [:]
         )
-        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, launcher: .init()))
+        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, launcher: .init(), mirror: mirror))
         host.appearance = NSAppearance(named: appearance)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
@@ -74,7 +90,7 @@ struct StatusPanelRenderTests {
 
     private static func expectPanelSized(_ image: NSBitmapImageRep) {
         #expect(image.pixelsHigh > 0)
-        #expect(image.size.width == 620)
+        #expect(image.size.width == 650)
     }
 
     private static func expectOpaque(_ image: NSBitmapImageRep) {
@@ -109,5 +125,22 @@ struct StatusPanelRenderTests {
     @Test
     func `live with a windowed emulator and android pool entries renders the panel`() throws {
         Self.expectPanelSized(try Self.render(Self.windowed(), named: "live-windowed"))
+    }
+
+    @Test(arguments: [(NSAppearance.Name.aqua, "live-mirror"), (.darkAqua, "live-mirror-dark")])
+    func `mirror button rows render in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        Self.expectPanelSized(try Self.render(Self.mirrorable(), named: name, appearance: appearance))
+    }
+
+    @Test
+    func `live with a mirror caption renders the panel`() throws {
+        let mirror: MirrorController = .init(
+            launcher: FakeMirrorLauncher(),
+            locator: .init(environment: [:], fallbackDirectories: [])
+        )
+        mirror.open(.mock())
+
+        Self.expectPanelSized(try Self.render(Self.mirrorable(), named: "live-mirror-caption", mirror: mirror))
+        #expect(mirror.caption == "scrcpy not found: brew install scrcpy")
     }
 }

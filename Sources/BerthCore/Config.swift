@@ -91,7 +91,7 @@ public struct Config: Codable, Sendable {
     }
 
     public func platform(of model: String) -> Platform {
-        entry(for: model)?.platform ?? .android
+        pool.platform(of: model)
     }
 
     public func entries(for platform: Platform) -> [PoolEntry] {
@@ -103,12 +103,17 @@ public struct Config: Codable, Sendable {
     }
 
     public func entry(for model: String) -> PoolEntry? {
-        pool.first { $0.name == model }
+        pool.entry(for: model)
+    }
+
+    public static func load(from url: URL = Paths.config) throws -> Config? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try JSONDecoder().decode(Config.self, from: data)
     }
 
     public static func loadOrCreate(discoverModels: (String) async -> [String]) async throws -> Config {
-        if let data = try? Data(contentsOf: Paths.config) {
-            return try JSONDecoder().decode(Config.self, from: data)
+        if let config = try load() {
+            return config
         }
         var config = Config()
         config.sdkRoot = config.resolvedSDKRoot

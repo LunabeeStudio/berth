@@ -7,15 +7,17 @@ final class StatusItemController: NSObject {
     private let model: StatusModel
     private let launchAtLogin: LaunchAtLogin
     private let launcher: EmulatorLauncher
+    private let mirror: MirrorController
     private let item: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover: NSPopover = .init()
 
-    init(model: StatusModel, launchAtLogin: LaunchAtLogin, launcher: EmulatorLauncher) {
+    init(model: StatusModel, launchAtLogin: LaunchAtLogin, launcher: EmulatorLauncher, mirror: MirrorController) {
         self.model = model
         self.launchAtLogin = launchAtLogin
         self.launcher = launcher
+        self.mirror = mirror
         super.init()
-        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, launcher: launcher))
+        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, launcher: launcher, mirror: mirror))
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
         popover.behavior = .transient

@@ -1,6 +1,6 @@
 ---
 issue: 22
-phase:
+phase: validated
 wiki: [[architecture]]
 note: Depends on #19 (PR #21): needs `Slot.windowed` and the reworked `EmulatorRow`. Code after #21 merges.
 created: 2026-10-19
@@ -61,8 +61,73 @@ Decisions settled from the code and the rules above:
 
 ## Implementation
 
+Autopilot run, 2026-10-20. One implementer, 3 bricks, then 2 autofix rounds.
+
+- Brick 1, mirror core, in `Sources/BerthBar/Mirror/`:
+  - `ScrcpyLocator` searches `PATH`, then `/opt/homebrew/bin`, then `/usr/local/bin`.
+  - `ScrcpyArguments` and `MirrorMode` (`.control` / `.viewOnly`) build `-s <serial>`, `--no-audio`, `--window-title`, and `--no-control` with ` (view only)` for a leased slot.
+  - `MirrorLauncher` / `MirrorProcess` are protocols. `SystemMirrorLauncher` / `SystemMirrorProcess` run scrcpy as a Foundation `Process` child, with env `ADB=<sdk>/platform-tools/adb` and output to `<logs>/mirror-<serial>.log`.
+  - `MirrorController` is `@Observable @MainActor`. It keeps one session per serial, brings an open mirror to front, switches a mirror to view-only when its slot goes free → leased, ignores its own stops through a session id, shows a caption, and stops all its mirrors on quit.
+  - `MirrorEligibility` decides which rows get the button.
+- Brick 2, panel and app wiring:
+  - `EmulatorRow` gets a 22 pt trailing column with the `play.display` button (tooltip "Mirror"). Rows without the button keep the empty column.
+  - `StatusPanel` is 650 pt wide and shows the mirror caption.
+  - `StatusItemController` passes the controller to the panel.
+  - `BerthBarDelegate` creates the model and the controller once, calls `observe(model)`, and calls `stopAll()` in `applicationWillTerminate`.
+- Brick 3: README "Menu bar" paragraph.
+- Autofix:
+  - BerthCore gets a read-only `Config.load(from:)`, which `loadOrCreate` reuses, and `Extensions/ArrayExtension.swift` with `[PoolEntry].entry(for:)` / `platform(of:)`, which `Config` delegates to.
+  - The log FileHandle is closed when `run()` throws.
+  - A launch error shows `mirror <serial> failed: <error>`.
+  - The normal exit codes are named constants.
+- Tests:
+  - `Tests/BerthBarTests/Mirror/`: locator, arguments, eligibility, controller with a fake launcher, and the real launcher running `/bin/sh` to check the ADB env, the log and the exit code.
+  - `StatusPanelRenderTests`: `live-mirror`, `live-mirror-dark` and `live-mirror-caption`, at 650 pt.
+  - `ConfigTests`: `load` and the pool lookup.
+- Wiki: `architecture` covers the BerthBar `Mirror/` folder, the BerthCore `Extensions/` folder, and a "Mirror" key decision.
+
 ## Review
 
+Round `validation (autopilot)`. LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓.
+
+- Pass 1: 18 minor findings, none critical or major. All fixed by autofix:
+  - FileHandle leak when the launch throws
+  - caption pointing to an empty log
+  - real launcher untested
+  - log dir creation
+  - duplicated config decode and pool lookup
+  - duplicated caption
+  - magic exit codes
+  - `control: Bool` replaced by the `MirrorMode` enum
+  - `@ObservationIgnored` on `let` properties
+  - `mirror.mirror` renamed to `open`
+  - one type per file
+  - test style nits
+- Pass 2: 3 minor findings, all fixed:
+  - a test continuation that could hang
+  - caption builders split by intent
+  - a redundant `?? nil`
+- Pass 3: clean.
+
 ## Verification
+
+- `swift build` ✅. `swift test` ✅: BerthBarTests 49, BerthCoreTests 32, BerthDaemonTests 77, and berthTests all pass. Run with `DEVELOPER_DIR=/Applications/Xcode-27.1.0.app/Contents/Developer`, because the CommandLineTools toolchain lacks the swift-testing macros.
+- Panel render (PNGs checked): the Mirror button shows on free and leased headless Android rows only. Windowed, iOS and resetting rows show none. Columns are aligned at 650 pt, and the panel reads well in light and dark. The `scrcpy not found: brew install scrcpy` caption renders.
+- Controller unit tests (fake launcher) cover:
+  - one mirror per serial, and a second click brings it to front
+  - free → leased restarts the mirror view-only, and a view-only mirror is never restarted
+  - exit 0 and 2 show no caption, any other exit code shows `mirror <serial> failed, see <log>`, and the controller's own stops show none
+  - not-found caption, cleared on the next click
+  - `stopAll` stops only the controller's own processes
+- Real launcher test: `ADB` env is set, output lands in the log, and the exit code comes back.
+- Runtime, per `CLAUDE.md#Desktop proofs`: launched own `.build/debug/berth-bar` with `BERTH_HOME=/tmp/bb22`, checked it stayed alive, and stopped it by pid. Frontmost app unchanged (iTerm2) before and after.
+- Not run by agent: a real scrcpy window takes focus, and scrcpy is not installed here. A human checks:
+  - the click and the window titles
+  - input on a free slot, view-only on a leased one
+  - the free → leased switch
+  - reset or stop closing the window
+  - second click bringing the window to front
+  - launchd PATH lookup
+  - Quit closing the mirrors
 
 ## Feedback
