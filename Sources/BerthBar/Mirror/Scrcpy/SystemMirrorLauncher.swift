@@ -4,13 +4,8 @@ import Foundation
 struct SystemMirrorLauncher: MirrorLauncher {
     private let adb: String
 
-    init(adb: String = Self.defaultADB()) {
+    init(adb: String = Config.defaultADBPath()) {
         self.adb = adb
-    }
-
-    static func defaultADB() -> String {
-        let config: Config = (try? Config.load()) ?? .init()
-        return URL(fileURLWithPath: config.resolvedSDKRoot).appending(path: "platform-tools/adb").path
     }
 
     func launch(
@@ -19,7 +14,7 @@ struct SystemMirrorLauncher: MirrorLauncher {
         log: URL,
         onExit: @escaping @MainActor @Sendable (Int32) -> Void
     ) throws -> any MirrorProcess {
-        try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try ScrcpyMirror.prepareLogDirectory(of: log)
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let output: FileHandle = try .init(forWritingTo: log)
         let process: Process = .init()

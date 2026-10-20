@@ -10,7 +10,7 @@ claude-plugin/
 ```
 
 ## Skill
-Description triggers on adb, emulator, Gradle connected/install, simctl, xcodebuild test, UI tests, device screenshots. Body byte-identical to `docs/AGENTS.md` after frontmatter + blank line (other agents still paste AGENTS.md). `PluginSyncTests` fails on drift, also when plugin.json / marketplace.json version ≠ `Berth.configuration.version` → bump all three together.
+Description triggers on adb, emulator, Gradle connected/install, simctl, xcodebuild test, UI tests, device screenshots, human action on device (login, sign-in, 2FA, captcha, show emulator/simulator window). Body section "When a human must act on the device": `berth claim` (not `run`: releases at end) → `berth mirror "$SERIAL"` → tell user what to do → wait for reply → continue; `renew` if long. Body byte-identical to `docs/AGENTS.md` after frontmatter + blank line (other agents still paste AGENTS.md). `PluginSyncTests` fails on drift, also when plugin.json / marketplace.json version ≠ `Berth.configuration.version` → bump all three together.
 
 ## Guard hook
 Command `command -v berth >/dev/null 2>&1 || exit 0; berth guard`, timeout 5 s. No berth on PATH → never blocks.
@@ -31,6 +31,7 @@ Command `command -v berth >/dev/null 2>&1 || exit 0; berth guard`, timeout 5 s. 
 - `XcodebuildRule` — `-destination` with iOS Simulator `name=` and no `id=` → deny.
 - `GradleRule` — `connected…` / `install…` task (last `:` segment; not `installDist`; option values like `--tests X` skipped) without `ANDROID_SERIAL` → deny.
 - `ProcessKillRule` — `pkill`/`killall` mentioning emulator/qemu/simulator → deny.
+- `ScrcpyRule` — `scrcpy` → deny (uses adb on PATH, can restart shared adb server), hint `berth mirror <serial>`; `--version`/`-v`/`--help`/`-h` allowed.
 
 Hints for iOS use `berth run --ios -- sh -c '… "$SIMULATOR_UDID" …'`: outer shell would expand var empty before berth sets it.
 

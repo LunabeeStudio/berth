@@ -90,6 +90,10 @@ public struct Config: Codable, Sendable {
         return FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Android/sdk").path
     }
 
+    public var adbPath: String {
+        URL(fileURLWithPath: resolvedSDKRoot).appending(path: "platform-tools/adb").path
+    }
+
     public func platform(of model: String) -> Platform {
         pool.platform(of: model)
     }
@@ -132,6 +136,10 @@ public struct Config: Codable, Sendable {
         try Paths.ensureDirectories()
         try config.save()
         return config
+    }
+
+    public static func defaultADBPath() -> String {
+        ((try? load()) ?? .init()).adbPath
     }
 
     public func save(to url: URL = Paths.config) throws {

@@ -1,15 +1,15 @@
-enum MirrorMode {
+public enum MirrorMode {
     case control
     case viewOnly
 
-    var titleSuffix: String {
+    public var titleSuffix: String {
         switch self {
         case .control: ""
         case .viewOnly: " (view only)"
         }
     }
 
-    var extraArguments: [String] {
+    public var extraArguments: [String] {
         switch self {
         case .control: []
         case .viewOnly: ["--no-control"]

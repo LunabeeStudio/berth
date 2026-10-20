@@ -46,3 +46,17 @@ berth release "$UDID"                                                # always re
 
 - A released simulator is erased; nothing you install survives.
 - `berth claim` without `--ios` still returns an Android emulator.
+
+## When a human must act on the device
+
+Login, sign-in, 2FA, captcha, or anything you cannot automate: ask the user to do it on the device.
+
+```bash
+SERIAL=$(berth claim --label "<short task name>" --timeout 110)   # not `berth run`: it releases the device when its command ends
+berth mirror "$SERIAL"                                           # opens a window on the user's screen; use the UDID for a simulator
+```
+
+- Tell the user exactly what to do in that window, then wait for their reply in chat before you continue.
+- Do not release the device meanwhile; `berth renew "$SERIAL"` if the wait is long.
+- Works for Android (needs scrcpy) and iOS (needs Xcode 27).
+- Never run `scrcpy` yourself: the guard blocks it.

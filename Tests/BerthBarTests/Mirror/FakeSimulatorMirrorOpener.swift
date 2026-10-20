@@ -1,6 +1,7 @@
 import Foundation
 
 @testable import BerthBar
+@testable import BerthCore
 
 @MainActor
 final class FakeSimulatorMirrorOpener: SimulatorMirrorOpener {

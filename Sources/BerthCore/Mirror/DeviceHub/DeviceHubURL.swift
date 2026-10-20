@@ -1,9 +1,9 @@
 import Foundation
 
-enum DeviceHubURL {
+public enum DeviceHubURL {
     private static let scheme: String = "devices"
 
-    static func open(udid: String) -> URL? {
+    public static func open(udid: String) -> URL? {
         var components: URLComponents = .init()
         components.scheme = scheme
         components.host = "device"

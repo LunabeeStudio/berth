@@ -10,6 +10,7 @@ ArgumentParser `AsyncParsableCommand`s in `Sources/berth/`. Root `Berth` (Berth.
 | `status [--json]` | `StatusRenderer`, colors only on tty; DEVICE column; UDID cut by `pad`, full in `--json`; remaining `—` for manual lease (menu bar) |
 | `top` | TUI, need tty |
 | `prepare <avd>` | Android only (rejects simulator entry); see [[android-backend]] |
+| `mirror <serial\|udid>` | window on **leased** device for human action (login, 2FA, captcha): Android → detached scrcpy w/ control, iOS → DeviceHub (Xcode 27); returns at once; errors exit 1 (`not a berth device`, `is <state>, claim it first`, scrcpy / DeviceHub not found); `autoSpawn: false`; see [[architecture]] |
 | `guard` | Claude Code PreToolUse hook: stdin payload → exit 0 allow / 2 deny + stderr reason; no daemon; see [[claude-code]] |
 | `update [--check]` | install latest GitHub release over own binary + sibling `berth-bar`; no daemon; dev build exit 1; see [[update]] |
 | `daemon run/stop/install/uninstall` | install = launchd agent `com.berth.daemon` |

@@ -55,6 +55,7 @@ cp .build/release/berth .build/release/berth-bar ~/.local/bin/
 | `berth release <serial\|lease>` | give it back (emulator is reset) |
 | `berth renew <serial\|lease> [--ttl s]` | extend a lease |
 | `berth status [--json]` / `berth top` | one-shot table / live TUI (`↑↓` select, `r` release, `x` stop, `q` quit) |
+| `berth mirror <serial\|udid>` | open a window on a leased device so a human can act on it (login, 2FA, captcha); returns at once. Needs scrcpy (`brew install scrcpy`) for Android, Xcode 27 (DeviceHub) for iOS; both optional |
 | `berth guard` | Claude Code hook: blocks device commands outside a lease (reads the hook payload on stdin) |
 | `berth stop-all` | stop every emulator berth started |
 | `berth update [--check]` | install the latest GitHub release over `berth` (and the `berth-bar` beside it); `--check` only reports the running and latest versions |
@@ -72,7 +73,7 @@ With `berth` on your PATH (see Install), add the plugin:
 ```
 
 - Skill `berth`: the agent rules, loaded when a task needs a device.
-- Guard hook: `berth guard` runs before every Bash call and blocks `adb` without a serial, emulator and `simctl` lifecycle commands, `booted`, `xcodebuild` by simulator name, Gradle connected/install tasks without `ANDROID_SERIAL`, and `pkill` of emulators. It tells Claude which berth command to use instead.
+- Guard hook: `berth guard` runs before every Bash call and blocks `adb` without a serial, emulator and `simctl` lifecycle commands, `booted`, `xcodebuild` by simulator name, Gradle connected/install tasks without `ANDROID_SERIAL`, `pkill` of emulators, and direct `scrcpy` (use `berth mirror`). It tells Claude which berth command to use instead.
 
 Without `berth` on PATH the hook does nothing. Disable the plugin in `/plugin` to opt out.
 

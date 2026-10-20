@@ -1,6 +1,6 @@
 import Testing
 
-@testable import BerthBar
+@testable import BerthCore
 
 @Suite
 struct DeviceHubURLTests {

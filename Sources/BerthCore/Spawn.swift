@@ -14,7 +14,7 @@ public enum SpawnError: Error, CustomStringConvertible {
 public enum Spawn {
     /// Own session so it outlives the parent and its terminal signals; only stdio is inherited.
     @discardableResult
-    public static func detached(_ executable: String, _ arguments: [String], log: URL) throws -> pid_t {
+    public static func detached(_ executable: String, _ arguments: [String], log: URL, environment: [String: String]? = nil) throws -> pid_t {
         var attributes: posix_spawnattr_t?
         posix_spawnattr_init(&attributes)
         defer { posix_spawnattr_destroy(&attributes) }
@@ -30,8 +30,12 @@ public enum Spawn {
         var argv: [UnsafeMutablePointer<CChar>?] = ([executable] + arguments).map { strdup($0) } + [nil]
         defer { argv.forEach { free($0) } }
 
+        let resolved: [String: String] = environment ?? ProcessInfo.processInfo.environment
+        var envp: [UnsafeMutablePointer<CChar>?] = resolved.map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer { envp.forEach { free($0) } }
+
         var pid: pid_t = 0
-        let code = posix_spawn(&pid, executable, &actions, &attributes, &argv, environ)
+        let code: Int32 = posix_spawn(&pid, executable, &actions, &attributes, &argv, &envp)
         guard code == 0 else { throw SpawnError.failed(executable, code) }
         return pid
     }
