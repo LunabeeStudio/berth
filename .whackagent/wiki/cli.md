@@ -7,7 +7,7 @@ ArgumentParser `AsyncParsableCommand`s in `Sources/berth/`. Root `Berth` (Berth.
 | `claim` | default Android; `--ios` any simulator, `--simulator X` that entry; `--avd` + `--ios`/`--simulator` = usage error (64); stdout = serial only (`S=$(berth claim)`); queue position → stderr; `--timeout` default 600 (0 = forever) → exit 2; `--owner-pid` override; `--json` |
 | `run -- cmd` | owner = run process itself; `ANDROID_SERIAL` (Android) or `SIMULATOR_UDID` (iOS) set — wrap in `sh -c '…'` to use it in args; SIGINT/TERM/HUP forwarded; always release; exit with child status; `--timeout` default 0 |
 | `release` / `renew` / `stop-all` | `autoSpawn: false` — never start daemon |
-| `status [--json]` | `StatusRenderer`, colors only on tty; DEVICE column; UDID cut by `pad`, full in `--json` |
+| `status [--json]` | `StatusRenderer`, colors only on tty; DEVICE column; UDID cut by `pad`, full in `--json`; remaining `—` for manual lease (menu bar) |
 | `top` | TUI, need tty |
 | `prepare <avd>` | Android only (rejects simulator entry); see [[android-backend]] |
 | `guard` | Claude Code PreToolUse hook: stdin payload → exit 0 allow / 2 deny + stderr reason; no daemon; see [[claude-code]] |

@@ -5,6 +5,7 @@ import SwiftUI
 struct StatusPanel: View {
     let model: StatusModel
     @Bindable var launchAtLogin: LaunchAtLogin
+    let launcher: EmulatorLauncher
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -37,7 +38,7 @@ struct StatusPanel: View {
             Text("none running").foregroundStyle(.secondary)
         }
         ForEach(snapshot.slots) { slot in
-            EmulatorRow(slot: slot, now: model.now)
+            EmulatorRow(slot: slot, now: model.now, launcher: launcher)
         }
         Text("Queue").font(.subheadline.bold())
         if snapshot.queue.isEmpty {
@@ -45,6 +46,22 @@ struct StatusPanel: View {
         }
         ForEach(Array(snapshot.queue.enumerated()), id: \.element.id) { index, waiter in
             QueueRow(position: index + 1, waiter: waiter, now: model.now)
+        }
+        launchMenu(snapshot.pool.filter { $0.platform == .android })
+    }
+
+    @ViewBuilder
+    private func launchMenu(_ entries: [PoolEntry]) -> some View {
+        if !entries.isEmpty {
+            Menu("Launch emulator") {
+                ForEach(entries, id: \.name) { entry in
+                    Button(entry.name) { launcher.launch(model: entry.name) }
+                }
+            }
+            .fixedSize()
+        }
+        if let error = launcher.error {
+            Text(error).font(.caption).foregroundStyle(.secondary)
         }
     }
 }

@@ -90,7 +90,7 @@ public final class IOSSimulatorBackend: DeviceBackend {
         state.withLock { $0.udids[model]?.first { !taken.contains($0) } }
     }
 
-    public func launch(serial: String, model: String) async throws -> Int32? {
+    public func launch(serial: String, model: String, windowed: Bool) async throws -> Int32? {
         try requireOwned(serial)
         _ = try? await simctl("shutdown", serial)
         _ = try await simctl("erase", serial)
@@ -103,8 +103,8 @@ public final class IOSSimulatorBackend: DeviceBackend {
         _ = try await simctl("bootstatus", serial, timeout: bootTimeout, onTimeout: .bootTimeout(serial))
     }
 
-    public func reset(serial: String, model: String, pid: Int32?) async throws -> Int32? {
-        let newPID = try await launch(serial: serial, model: model)
+    public func reset(serial: String, model: String, pid: Int32?, windowed: Bool) async throws -> Int32? {
+        let newPID = try await launch(serial: serial, model: model, windowed: false)
         try await waitReady(serial: serial, pid: newPID)
         return newPID
     }

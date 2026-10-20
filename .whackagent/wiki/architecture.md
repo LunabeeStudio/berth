@@ -4,7 +4,7 @@ One binary `berth`, two roles: short-lived **client** commands + long-lived **da
 
 ```
 agent shell → berth claim/run/release/status/top (client, BerthCore.DaemonClient)
-berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
+berth-bar (menu bar, BerthCore.DaemonWatch + windowed claim/release, never autospawn)
                  │ NDJSON over Unix socket  <BERTH_HOME>/berth.sock
                  ▼
             berth daemon run (BerthDaemon.Daemon)
@@ -17,7 +17,7 @@ berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
 
 ## Modules
 - `BerthCore` — shared by CLI, daemon, bar: `Model` (Slot, Lease, Owner, StateSnapshot), `Platform` (android | ios), `Protocol` (Request/Event enums, `Wire` JSON lines, `NewlineFrameDecoder`), `Client` (session, auto-spawn), `Config` (pool entry `avd` | `simulator`, `platform(of:)`, `models(for:)`), `Paths`, `Shell` (async Process runner), `Spawn` (posix_spawn detached), `ProcessInspector` (sysctl owner/liveness), `Watch` (`DaemonWatch` reconnecting watch stream), `Format` (`DurationFormat`), `Launchd` (`LaunchAgent`: per-user plist in `~/Library/LaunchAgents`, write/remove/isInstalled, no launchctl), `Version` (`BerthVersion.current`, stamped at release → [[release]]), `Update` (self-updater → [[update]]).
-- `BerthBar` — `berth-bar` AppKit `NSStatusItem` + `NSPopover` (SwiftUI panel) app, BerthCore only. `App/` entry, `Status/` model + state, `MenuBar/` status item + label, `Panel/` views, `Login/` launch-at-login checkbox (`com.berth.bar` plist). Read-only toward daemon; `autoSpawn: false` (spawn would relaunch itself).
+- `BerthBar` — `berth-bar` AppKit `NSStatusItem` + `NSPopover` (SwiftUI panel) app, BerthCore only. `App/` entry, `Status/` model + state, `MenuBar/` status item + label, `Panel/` views, `Login/` launch-at-login checkbox (`com.berth.bar` plist), `Launch/` `EmulatorLauncher` (windowed claim + ack, release, error line; `DaemonActions` protocol injected, `DaemonClientActions` default). Watches daemon + sends windowed claims / release; `autoSpawn: false` (spawn would relaunch itself).
 - `BerthDaemon` — `Broker`, `Server`, `Daemon` (lock, config, reap loop), `Backends/` (`DeviceBackend` protocol, `DeviceRouter`, `AndroidBackend`, `IOSSimulatorBackend`), `StateStore`, `SelfUpdate/` (auto update + same-pid re-exec → [[update]]).
 - `berth` — ArgumentParser commands + TUI → [[cli]]; `Guard/` shell tokenizer + device rules for `berth guard` → [[claude-code]].
 - `tools/desktop/desk.swift` — standalone script (outside package, `xcrun swift`): `desk-state`, `window-id <pid>`, `capture <pid>` (`screencapture -l`). Desktop proofs of `berth-bar` never take mouse/keyboard/focus → `CLAUDE.md#Desktop proofs`. Panel proven offscreen: `BerthBarTests/Panel` renders `StatusPanel` per state (`StatusModel.init(state:now:)`), `BERTH_PANEL_PNG_DIR` → PNGs. macOS 27: status item drawn by `MenuBarAgent`, not app pid → not capturable; popover open steals focus (`NSApp.activate`) → human checks click + Quit.
@@ -29,6 +29,7 @@ berth-bar (menu bar, read-only, BerthCore.DaemonWatch, never autospawn)
 - **Paths**: `BERTH_HOME` relocates config/state/socket/logs (default `~/Library/Application Support/berth`, logs `~/Library/Logs/berth`). Socket path ≤ 104 bytes.
 - **Shell output → temp files, not pipes**: adb may fork server inheriting pipe → read never EOF.
 - **Login items = launchd agents, not `SMAppService`**: `berth-bar` bare executable, no `.app` bundle. Daemon `com.berth.daemon` (`berth daemon install`, KeepAlive, bootstrap now). Bar `com.berth.bar` (panel checkbox, RunAtLoad only, no KeepAlive → Quit sticks; no bootstrap/bootout → no 2nd instance, no self-kill). Checkbox on ⇔ plist exists. Plist keeps binary path + `BERTH_HOME` from when enabled. → #8
+- **Windowed = human's emulator**: panel "Launch emulator" → claim `windowed: true` (Android pool AVD, label `you`, owner berth-bar) → windowed boot (or reuse free windowed), manual lease forever; release → free pool slot, no reset, any claim takes it as is. One claim loop `DaemonClient.claim` shared by CLI `ClaimFlow` + bar. → [[broker]], #19
 - Emulators spawned w/ `POSIX_SPAWN_CLOEXEC_DEFAULT` → no inherited daemon socket fds.
 
 ## Extending

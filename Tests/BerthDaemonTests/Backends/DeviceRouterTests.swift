@@ -26,8 +26,8 @@ struct DeviceRouterTests {
     func `live serials are the union of both platforms`() async throws {
         let android = FakeBackend()
         let ios = FakeBackend()
-        _ = try await android.launch(serial: "emulator-5554", model: "Pixel")
-        _ = try await ios.launch(serial: "UDID-1", model: "iPhone 17")
+        _ = try await android.launch(serial: "emulator-5554", model: "Pixel", windowed: false)
+        _ = try await ios.launch(serial: "UDID-1", model: "iPhone 17", windowed: false)
         #expect(await router(android: android, ios: ios).liveSerials() == ["emulator-5554", "UDID-1"])
     }
 

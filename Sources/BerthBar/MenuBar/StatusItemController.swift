@@ -6,14 +6,16 @@ import SwiftUI
 final class StatusItemController: NSObject {
     private let model: StatusModel
     private let launchAtLogin: LaunchAtLogin
+    private let launcher: EmulatorLauncher
     private let item: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover: NSPopover = .init()
 
-    init(model: StatusModel, launchAtLogin: LaunchAtLogin) {
+    init(model: StatusModel, launchAtLogin: LaunchAtLogin, launcher: EmulatorLauncher) {
         self.model = model
         self.launchAtLogin = launchAtLogin
+        self.launcher = launcher
         super.init()
-        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin))
+        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, launcher: launcher))
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
         popover.behavior = .transient

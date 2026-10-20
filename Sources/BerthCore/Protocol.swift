@@ -7,16 +7,19 @@ public struct ClaimRequest: Codable, Sendable {
     public var ttl: Int?
     public var label: String?
     public var owner: Owner
+    public var windowed: Bool?
 
-    public init(model: String?, platform: Platform? = nil, ttl: Int?, label: String?, owner: Owner) {
+    public init(model: String?, platform: Platform? = nil, ttl: Int?, label: String?, owner: Owner, windowed: Bool? = nil) {
         self.model = model
         self.platform = platform
         self.ttl = ttl
         self.label = label
         self.owner = owner
+        self.windowed = windowed
     }
 
     public var resolvedPlatform: Platform { platform ?? .android }
+    public var isWindowed: Bool { windowed ?? false }
 }
 
 public enum Request: Codable, Sendable {

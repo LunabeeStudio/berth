@@ -9,6 +9,6 @@ final class BerthBarDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        controller = .init(model: .init(), launchAtLogin: .init())
+        controller = .init(model: .init(), launchAtLogin: .init(), launcher: .init())
     }
 }

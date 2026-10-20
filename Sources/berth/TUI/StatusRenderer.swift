@@ -37,6 +37,11 @@ struct StatusRenderer {
         return lines
     }
 
+    private func remaining(_ lease: Lease?) -> String {
+        guard let lease, !lease.manual else { return "—" }
+        return DurationFormat.remaining(lease.expiresAt.timeIntervalSince(now))
+    }
+
     private func slotLine(_ slot: Slot, selected: Bool) -> String {
         let lease = slot.lease
         let cells: [String] = [
@@ -46,7 +51,7 @@ struct StatusRenderer {
             lease?.owner.display ?? "—",
             lease?.label ?? "—",
             DurationFormat.clock(now.timeIntervalSince(lease?.grantedAt ?? slot.stateSince)),
-            lease.map { DurationFormat.remaining($0.expiresAt.timeIntervalSince(now)) } ?? "—",
+            remaining(lease),
         ]
         let widths = Self.slotColumns.map(\.1)
         var rendered = zip(cells, widths).map { Self.pad($0, $1) }

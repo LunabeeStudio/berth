@@ -25,14 +25,27 @@ public struct Lease: Codable, Sendable, Hashable {
     public var grantedAt: Date
     public var expiresAt: Date
     public var acknowledged: Bool
+    public var manual: Bool
 
-    public init(id: String, owner: Owner, label: String?, grantedAt: Date, expiresAt: Date, acknowledged: Bool) {
+    public init(id: String, owner: Owner, label: String?, grantedAt: Date, expiresAt: Date, acknowledged: Bool, manual: Bool = false) {
         self.id = id
         self.owner = owner
         self.label = label
         self.grantedAt = grantedAt
         self.expiresAt = expiresAt
         self.acknowledged = acknowledged
+        self.manual = manual
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        owner = try container.decode(Owner.self, forKey: .owner)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        grantedAt = try container.decode(Date.self, forKey: .grantedAt)
+        expiresAt = try container.decode(Date.self, forKey: .expiresAt)
+        acknowledged = try container.decode(Bool.self, forKey: .acknowledged)
+        manual = try container.decodeIfPresent(Bool.self, forKey: .manual) ?? false
     }
 }
 
@@ -44,10 +57,21 @@ public struct Slot: Codable, Sendable, Identifiable {
     public var stateSince: Date
     public var lease: Lease?
     public var generation: Int
+    public var windowed: Bool
 
     public var id: String { serial }
+    public var isManuallyLeased: Bool { state == .leased && lease?.manual == true }
 
-    public init(serial: String, model: String, pid: Int32?, state: SlotState, stateSince: Date, lease: Lease? = nil, generation: Int) {
+    public init(
+        serial: String,
+        model: String,
+        pid: Int32?,
+        state: SlotState,
+        stateSince: Date,
+        lease: Lease? = nil,
+        generation: Int,
+        windowed: Bool = false
+    ) {
         self.serial = serial
         self.model = model
         self.pid = pid
@@ -55,6 +79,19 @@ public struct Slot: Codable, Sendable, Identifiable {
         self.stateSince = stateSince
         self.lease = lease
         self.generation = generation
+        self.windowed = windowed
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
+        serial = try container.decode(String.self, forKey: .serial)
+        model = try container.decode(String.self, forKey: .model)
+        pid = try container.decodeIfPresent(Int32.self, forKey: .pid)
+        state = try container.decode(SlotState.self, forKey: .state)
+        stateSince = try container.decode(Date.self, forKey: .stateSince)
+        lease = try container.decodeIfPresent(Lease.self, forKey: .lease)
+        generation = try container.decode(Int.self, forKey: .generation)
+        windowed = try container.decodeIfPresent(Bool.self, forKey: .windowed) ?? false
     }
 }
 
@@ -123,9 +160,10 @@ extension Lease {
         label: String? = nil,
         grantedAt: Date = .init(timeIntervalSince1970: 0),
         expiresAt: Date = .init(timeIntervalSince1970: 3600),
-        acknowledged: Bool = true
+        acknowledged: Bool = true,
+        manual: Bool = false
     ) -> Lease {
-        .init(id: id, owner: owner, label: label, grantedAt: grantedAt, expiresAt: expiresAt, acknowledged: acknowledged)
+        .init(id: id, owner: owner, label: label, grantedAt: grantedAt, expiresAt: expiresAt, acknowledged: acknowledged, manual: manual)
     }
 }
 
@@ -137,9 +175,10 @@ extension Slot {
         state: SlotState = .free,
         stateSince: Date = .init(timeIntervalSince1970: 0),
         lease: Lease? = nil,
-        generation: Int = 1
+        generation: Int = 1,
+        windowed: Bool = false
     ) -> Slot {
-        .init(serial: serial, model: model, pid: pid, state: state, stateSince: stateSince, lease: lease, generation: generation)
+        .init(serial: serial, model: model, pid: pid, state: state, stateSince: stateSince, lease: lease, generation: generation, windowed: windowed)
     }
 }
 

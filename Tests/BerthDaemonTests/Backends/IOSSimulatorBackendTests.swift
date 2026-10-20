@@ -54,7 +54,7 @@ struct IOSSimulatorBackendTests {
     func `launch refuses a device berth does not own`() async {
         let backend = IOSSimulatorBackend(config: Config())
         await #expect(throws: BackendError.self) {
-            _ = try await backend.launch(serial: "U1", model: "iPhone 18 Pro")
+            _ = try await backend.launch(serial: "U1", model: "iPhone 18 Pro", windowed: false)
         }
     }
 }
