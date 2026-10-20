@@ -15,9 +15,23 @@ Native Swift 6 binary for macOS (Apple silicon), no runtime.
 ## Install
 
 ```bash
-mkdir -p ~/.local/bin && curl -fsSL https://github.com/LunabeeStudio/berth/releases/latest/download/berth-macos-arm64.tar.gz | tar -xz -C ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/LunabeeStudio/berth/main/install.sh | bash
 berth prepare <AVD>                         # once per AVD: saves the clean snapshot (≈30 s)
 berth status                                # starts the daemon, writes the default config
+```
+
+The script installs the latest release, SHA-256 checked, with `berth` and `berth-bar` in `~/.local/bin`, and prints the line to add to your PATH when needed. Running it again reinstalls the latest; `berth update` stays the way to update.
+
+To pick the directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LunabeeStudio/berth/main/install.sh | BERTH_INSTALL_DIR=<dir> bash
+```
+
+Without the script:
+
+```bash
+mkdir -p ~/.local/bin && curl -fsSL https://github.com/LunabeeStudio/berth/releases/latest/download/berth-macos-arm64.tar.gz | tar -xz -C ~/.local/bin
 ```
 
 `~/.local/bin` must be on your PATH. The archive holds `berth` and `berth-bar`.
