@@ -1,13 +1,25 @@
 {
   "description": "Blocks device commands that bypass a berth lease",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v berth >/dev/null 2>&1 && exit 0; if [ -x \"$HOME/.local/bin/berth\" ]; then [ -z \"$CLAUDE_ENV_FILE\" ] || echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> \"$CLAUDE_ENV_FILE\"; else echo '{\"systemMessage\": \"berth not found on PATH or in ~/.local/bin: the device guard is off. Install: https://github.com/LunabeeStudio/berth#install\"}'; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "command -v berth >/dev/null 2>&1 || exit 0; berth guard",
+            "command": "if command -v berth >/dev/null 2>&1; then exec berth guard; elif [ -x \"$HOME/.local/bin/berth\" ]; then exec \"$HOME/.local/bin/berth\" guard; fi",
             "timeout": 5
           }
         ]
