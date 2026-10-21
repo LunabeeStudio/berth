@@ -1,6 +1,6 @@
 ---
 issue: 34
-phase:
+phase: validated
 type: bug
 wiki: [[claude-code]]
 note:
@@ -25,19 +25,44 @@ Decisions (unattended grill, 2026-10-21):
 
 ## Acceptance criteria
 
-- [ ] With `PATH=/usr/bin:/bin` and an executable `$HOME/.local/bin/berth`, the PreToolUse hook command runs `$HOME/.local/bin/berth guard` with the hook's stdin and returns its exit code (2 stays 2: the call is blocked).
-- [ ] With `berth` on PATH, the PreToolUse hook runs that one, not the one in `~/.local/bin`.
-- [ ] With no berth anywhere, the PreToolUse hook exits 0 and prints nothing.
-- [ ] The SessionStart hook, with berth only in `~/.local/bin` and `CLAUDE_ENV_FILE` set, appends `export PATH="$HOME/.local/bin:$PATH"` to that file, prints nothing and exits 0.
-- [ ] The SessionStart hook, with berth on PATH, writes nothing and prints nothing.
-- [ ] The SessionStart hook, with no berth anywhere, prints the `systemMessage` JSON line on stdout (it parses as JSON) and exits 0.
-- [ ] The README and the [[claude-code]] wiki page no longer say the hook does nothing without berth on PATH. They describe the fallback, the PATH export and the warning.
-- [ ] `swift test` passes, including the new hook tests.
+- [x] With `PATH=/usr/bin:/bin` and an executable `$HOME/.local/bin/berth`, the PreToolUse hook command runs `$HOME/.local/bin/berth guard` with the hook's stdin and returns its exit code (2 stays 2: the call is blocked).
+- [x] With `berth` on PATH, the PreToolUse hook runs that one, not the one in `~/.local/bin`.
+- [x] With no berth anywhere, the PreToolUse hook exits 0 and prints nothing.
+- [x] The SessionStart hook, with berth only in `~/.local/bin` and `CLAUDE_ENV_FILE` set, appends `export PATH="$HOME/.local/bin:$PATH"` to that file, prints nothing and exits 0.
+- [x] The SessionStart hook, with berth on PATH, writes nothing and prints nothing.
+- [x] The SessionStart hook, with no berth anywhere, prints the `systemMessage` JSON line on stdout (it parses as JSON) and exits 0.
+- [x] The README and the [[claude-code]] wiki page no longer say the hook does nothing without berth on PATH. They describe the fallback, the PATH export and the warning.
+- [x] `swift test` passes, including the new hook tests.
 
 ## Implementation
 
+One brick (autopilot, 2026-10-21).
+- `claude-plugin/hooks/hooks.json` — PreToolUse: `if command -v berth …; then exec berth guard; elif [ -x "$HOME/.local/bin/berth" ]; then exec "$HOME/.local/bin/berth" guard; fi`. New SessionStart hook, matcher `startup|resume|clear` (compact keeps the session env, so a second append or warning would be noise): berth on PATH → exit 0; only in `~/.local/bin` → `export PATH="$HOME/.local/bin:$PATH"` appended, unexpanded, to `$CLAUDE_ENV_FILE` when set; nowhere → `systemMessage` JSON line.
+- `Tests/berthTests/Plugin/HookCommandTests.swift` (new) — runs each hooks.json command with `/bin/sh -c`, temp `HOME`, `PATH=/usr/bin:/bin`, fake `berth` script; 7 cases.
+- `Tests/berthTests/Plugin/RepoFile.swift` (new) — repo-file helper shared with `PluginSyncTests`.
+- `README.md` l.78 — fallback, PATH export, warning.
+- Wiki [[claude-code]] — guard hook section.
+
+Build: `swift build` ✅ · `swift test` ✅ (56 + 83 + 44 + 58 tests, 4 binaries).
+
 ## Review
 
+### validation (autopilot) — 2026-10-21
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓ — verdict clean after 3 autofix rounds.
+- Round 1, 6 minor, all fixed: shared `RepoFile` helper instead of copied `root`/`json` [structure]; `Outcome`/`Sandbox` moved into `private extension` [style]; Bool flags renamed `berthOnPath:` / `withEnvFile:` [elegance]; `Sandbox` stores `dir` for cleanup [elegance]; `write(contentsOf:)` instead of legacy `write(Data)` [elegance]; exact warning text asserted + new case "berth in ~/.local/bin, `CLAUDE_ENV_FILE` unset" [correctness].
+- Round 2, 1 minor fixed: `RepoFile.url(_:)` private [structure].
+- Round 3, 1 minor fixed: member order, private below internal [style].
+- Verifier also ran the hook commands under `/bin/sh` and `/bin/zsh` with `env -i`: every branch exits as specified, `exec` passes the guard's exit code through.
+
 ## Verification
+
+Runtime check by agent (`env -i HOME=<tmp> PATH=/usr/bin:/bin /bin/sh -c '<hooks.json command>'`, real `.build/debug/berth` linked as `<tmp>/.local/bin/berth`):
+- ✅ PreToolUse, `adb shell ls` payload → exit 2, stderr `berth: adb without -s targets whatever device is connected. Claim one: berth run -- <cmd> …`
+- ✅ PreToolUse, `ls` payload → exit 0
+- ✅ PreToolUse, no berth → exit 0, no output
+- ✅ SessionStart, berth only in `~/.local/bin`, `CLAUDE_ENV_FILE` set → exit 0, no stdout, file holds `export PATH="$HOME/.local/bin:$PATH"`
+- ✅ SessionStart, no berth → stdout `{"systemMessage": "berth not found on PATH or in ~/.local/bin: the device guard is off. Install: https://github.com/LunabeeStudio/berth#install"}`, exit 0
+- ✅ berth on PATH wins over `~/.local/bin`, SessionStart with berth on PATH writes nothing — unit tests
+- Not proven by agent: the hooks inside a real Claude Code session (needs a plugin reinstall from this branch and a new session)
 
 ## Feedback

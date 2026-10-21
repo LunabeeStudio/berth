@@ -1,19 +1,22 @@
 # Claude Code integration
 
-Plugin in repo. Marketplace `.claude-plugin/marketplace.json` (marketplace `berth`, plugin `berth`, `source: ./claude-plugin`). Install: `/plugin marketplace add LunabeeStudio/berth` → `/plugin install berth@berth`. Binary must already be on PATH (plugin ships no binary).
+Plugin in repo. Marketplace `.claude-plugin/marketplace.json` (marketplace `berth`, plugin `berth`, `source: ./claude-plugin`). Install: `/plugin marketplace add LunabeeStudio/berth` → `/plugin install berth@berth`. Plugin ships no binary: hooks find it on PATH, else at `~/.local/bin/berth` (install.sh default).
 
 ```
 claude-plugin/
 ├── .claude-plugin/plugin.json   # name berth, version = CLI version
 ├── skills/berth/SKILL.md        # agent rules, body == docs/AGENTS.md
-└── hooks/hooks.json             # PreToolUse, matcher Bash → berth guard
+└── hooks/hooks.json             # SessionStart → PATH export / warning; PreToolUse, matcher Bash → berth guard
 ```
 
 ## Skill
 Description triggers on adb, emulator, Gradle connected/install, simctl, xcodebuild test, UI tests, device screenshots, human action on device (login, sign-in, 2FA, captcha, show emulator/simulator window). Body section "When a human must act on the device": `berth claim` (not `run`: releases at end) → `berth mirror "$SERIAL"` → tell user what to do → wait for reply → continue; `renew` if long. Body byte-identical to `docs/AGENTS.md` after frontmatter + blank line (other agents still paste AGENTS.md). `PluginSyncTests` fails on drift, also when plugin.json / marketplace.json version ≠ `Berth.configuration.version` → bump all three together.
 
 ## Guard hook
-Command `command -v berth >/dev/null 2>&1 || exit 0; berth guard`, timeout 5 s. No berth on PATH → never blocks.
+Both hooks inline POSIX `sh` in `hooks.json`, timeout 5 s, resolve berth: `command -v berth`, else `$HOME/.local/bin/berth` if executable (#34: install dir often missing from the PATH Claude Code inherits → guard used to exit 0 silently, agents ran `adb`/`emulator` unguarded).
+- **PreToolUse** (matcher `Bash`) → `exec <berth> guard`. No berth anywhere → exit 0, silent, never blocks.
+- **SessionStart** (matcher `startup|resume|clear`; compact keeps session env) → berth on PATH: nothing. Only in `~/.local/bin`: append `export PATH="$HOME/.local/bin:$PATH"` (unexpanded) to `$CLAUDE_ENV_FILE` so agent Bash calls (skill commands, guard hints) find `berth`. Nowhere: one stdout JSON line `{"systemMessage": "berth not found … device guard is off …"}`, exit 0 — warning once per session, not per Bash call.
+- `HookCommandTests` runs each command from `hooks.json` via `/bin/sh -c` with temp `HOME`, `PATH=/usr/bin:/bin`, fake `berth` script.
 
 `berth guard` (CLI only, never talks to daemon): stdin payload → `HookPayload.command(from:)` (nil unless `tool_name == Bash`) → `DeviceCommandGuard.verdict(for:)`. Allow = exit 0 silent. Deny = exit 2 + one stderr line `berth: <why>. <berth alternative>` (Claude Code feeds stderr back to model).
 

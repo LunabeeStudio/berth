@@ -75,7 +75,7 @@ With `berth` on your PATH (see Install), add the plugin:
 - Skill `berth`: the agent rules, loaded when a task needs a device.
 - Guard hook: `berth guard` runs before every Bash call and blocks `adb` without a serial, emulator and `simctl` lifecycle commands, `booted`, `xcodebuild` by simulator name, Gradle connected/install tasks without `ANDROID_SERIAL`, `pkill` of emulators, and direct `scrcpy` (use `berth mirror`). It tells Claude which berth command to use instead.
 
-Without `berth` on PATH the hook does nothing. Disable the plugin in `/plugin` to opt out.
+The hook finds `berth` on PATH, then in `~/.local/bin` (the installer default). When only `~/.local/bin` has it, the plugin also adds that directory to the PATH of the session, so the agent can run `berth`. When `berth` is nowhere, the hook allows everything and you get one warning at session start. Disable the plugin in `/plugin` to opt out.
 
 ## Menu bar
 
