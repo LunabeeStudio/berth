@@ -20,6 +20,7 @@ public actor Broker {
     private let store: StateStore?
     private let now: @Sendable () -> Date
     private let ownerAlive: @Sendable (Owner) -> Bool
+    private let adbServerPid: @Sendable () async -> Int32?
 
     private var slots: [String: Slot] = [:]
     private var waiters: [Waiter] = []
@@ -30,19 +31,23 @@ public actor Broker {
     private var bootFailures: [String: Int] = [:]
     private var brokenUntil: [String: Date] = [:]
     private var generationCounter = 0
+    private var adbRestartDetector: AdbRestartDetector = .init()
+    private var adbRestartedAt: Date?
 
     public init(
         config: Config,
         backend: any DeviceBackend,
         store: StateStore? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
-        ownerAlive: @escaping @Sendable (Owner) -> Bool = ProcessInspector.isAlive
+        ownerAlive: @escaping @Sendable (Owner) -> Bool = ProcessInspector.isAlive,
+        adbServerPid: @escaping @Sendable () async -> Int32? = { nil }
     ) {
         self.config = config
         self.backend = backend
         self.store = store
         self.now = now
         self.ownerAlive = ownerAlive
+        self.adbServerPid = adbServerPid
     }
 
     // region Requests
@@ -84,6 +89,7 @@ public actor Broker {
             return
         }
         waiters.append(Waiter(id: Self.shortID(), conn: conn, request: request, enqueuedAt: now(), sink: sink))
+        if platform == .android, let notice = adbNotice() { sink.yield(.ok(notice)) }
         schedule()
     }
 
@@ -158,14 +164,16 @@ public actor Broker {
     }
 
     public func snapshot() -> StateSnapshot {
-        StateSnapshot(
+        let generatedAt: Date = now()
+        return StateSnapshot(
             slots: slots.values.sorted { $0.serial.numericallyPrecedes($1.serial) },
             queue: waiters.map {
                 WaiterInfo(id: $0.id, owner: $0.request.owner, label: $0.request.label, model: $0.request.model, enqueuedAt: $0.enqueuedAt)
             },
             maxRunning: config.maxRunning,
             pool: config.pool,
-            generatedAt: now()
+            generatedAt: generatedAt,
+            adbRestartedAt: AdbInstability.isUnstable(restartedAt: adbRestartedAt, now: generatedAt) ? adbRestartedAt : nil
         )
     }
 
@@ -199,6 +207,7 @@ public actor Broker {
     }
 
     public func reap() async {
+        await watchAdbServer()
         let live = await backend.liveSerials()
         let current = now()
 
@@ -241,6 +250,21 @@ public actor Broker {
         }
 
         schedule()
+    }
+
+    private func watchAdbServer() async {
+        guard !config.entries(for: .android).isEmpty else { return }
+        guard let restart = adbRestartDetector.observe(await adbServerPid()) else { return }
+        Log.info("adb server restarted (pid \(restart.old) → \(restart.new))")
+        adbRestartedAt = now()
+        guard let notice = adbNotice() else { return }
+        for waiter in waiters where waiter.request.resolvedPlatform == .android {
+            waiter.sink.yield(.ok(notice))
+        }
+    }
+
+    private func adbNotice() -> String? {
+        AdbInstability.notice(restartedAt: adbRestartedAt, now: now())
     }
 
     // endregion

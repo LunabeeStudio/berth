@@ -42,9 +42,12 @@ struct ClaimOptions: ParsableArguments {
 enum ClaimFlow {
     static func claim(_ options: ClaimOptions, owner: Owner, timeout: Int) async throws -> Grant {
         let request: ClaimRequest = .init(model: options.simulator ?? options.avd, platform: options.platform, ttl: options.ttl, label: options.label, owner: owner)
-        return try await DaemonClient.claim(request, timeout: timeout > 0 ? .seconds(timeout) : nil) { position in
-            printError("berth: waiting for a device (queue position \(position))")
-        }
+        return try await DaemonClient.claim(
+            request,
+            timeout: timeout > 0 ? .seconds(timeout) : nil,
+            onQueued: { printError("berth: waiting for a device (queue position \($0))") },
+            onNotice: { printError("berth: \($0)") }
+        )
     }
 }
 

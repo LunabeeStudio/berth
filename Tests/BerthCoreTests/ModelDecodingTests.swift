@@ -31,4 +31,23 @@ struct ModelDecodingTests {
 
         #expect(lease.manual == false)
     }
+
+    @Test
+    func `a snapshot saved before adbRestartedAt existed decodes with no notice`() throws {
+        let json: String = #"{"slots":[],"queue":[],"maxRunning":2,"pool":[],"generatedAt":0}"#
+
+        let snapshot: StateSnapshot = try Wire.decoder().decode(StateSnapshot.self, from: Data(json.utf8))
+
+        #expect(snapshot.adbRestartedAt == nil)
+        #expect(snapshot.adbNotice(now: .init(timeIntervalSince1970: 0)) == nil)
+    }
+
+    @Test
+    func `adbRestartedAt survives an encode decode round trip`() throws {
+        let restartedAt: Date = .init(timeIntervalSince1970: 100)
+
+        let data: Data = try Wire.encoder().encode(StateSnapshot.mock(adbRestartedAt: restartedAt))
+
+        #expect(try Wire.decoder().decode(StateSnapshot.self, from: data).adbRestartedAt == restartedAt)
+    }
 }

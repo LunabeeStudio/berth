@@ -37,6 +37,16 @@ Two notions. `Slot.windowed` = boot mode (window, kept for slot life). `Lease.ma
 - Dead owners / expired leases → reset; dead-owner waiters → failure.
 - Free > `idleShutdownSeconds` → stop.
 
+## adb restart watch (BERTH-2)
+Other adb clients (Android Studio, Gradle ddmlib) kill the shared adb server → every emulator offline a while → agents release + reclaim healthy devices. Broker only observes, never restarts server.
+- Each reap, first (before `liveSerials`, no stale samples after suspension): injected sampler → adb server pid ([[android-backend]]). Only when pool has Android entries; default sampler `{ nil }` (tests, iOS-only).
+- `AdbRestartDetector`: restart = pid ≠ last non-nil pid. First pid = baseline. nil sample (no server listening) skipped → kill + restart counts once.
+- Restart → `daemon.log` `adb server restarted (pid A → B)`, `adbRestartedAt` set, `.ok(notice)` to every Android waiter.
+- Claim arriving while unstable → `.ok(notice)` too. `.ok` reused, no new `Event` case: old clients ignore it.
+- Unstable = `AdbInstability.isUnstable`: 0 ≤ age < 60 s. Snapshot carries `adbRestartedAt` only while unstable (optional, decodeIfPresent). Clients re-check with own live `now` (`adbNotice(now:)`), so text ages + expires between 5 s snapshots.
+- Notice: `adb unstable: server restarted <n> s ago; devices reconnect on their own, keep your lease`. Shown by `berth status`/`top` ([[cli]]), claim stderr, berth-bar panel line + menu bar `exclamationmark.triangle`.
+- Not changed: vanished-slot reap (3 missed ticks) during instability.
+
 ## Failure handling
 - Boot fail ×3 for model → model "broken" 10 min, its waiters failed (any-waiters of same platform failed only if all its models broken or unavailable). Messages name device kind (AVD / simulator).
 - **Orphan race**: stop (`stop-all`, eviction) while boot/reset in flight → task later brings device up for dead slot. `discardOrphan` installs fresh-generation `.stopping` slot + `startShutdown` → serial held until shut down, never one newer slot owns.

@@ -18,6 +18,9 @@
 ## Shutdown
 `adb -s S emu kill` → wait pid exit 20 s → SIGTERM → 3 s → SIGKILL.
 
+## adb server pid
+`AdbServerPid.sample()` (BerthDaemon/Adb): `/usr/sbin/lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, port `ANDROID_ADB_SERVER_PORT` else 5037, timeout 5 s → first pid or nil. Read-only: never `start-server`/`kill-server`. Feeds broker restart watch ([[broker]]).
+
 ## Prepare (`berth prepare <avd>`, CLI-side)
 Refuses if AVD running (daemon slot or `adb emu avd name`). Cold boot non-read-only (`-no-snapshot-load -no-snapshot-save`), animations off, wake + dismiss keyguard, settle N s, `emu avd snapshot save berth-clean`, kill. ≈ 30 s. Snapshot dir `~/.android/avd/<path>/snapshots/berth-clean` (~4 GB).
 

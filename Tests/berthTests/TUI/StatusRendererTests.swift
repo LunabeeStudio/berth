@@ -28,4 +28,22 @@ struct StatusRendererTests {
 
         #expect(!line.hasSuffix("—      "))
     }
+
+    private func headerLines(restartedAgo: TimeInterval?) -> [String] {
+        let snapshot: StateSnapshot = .mock(adbRestartedAt: restartedAgo.map { Self.now.addingTimeInterval(-$0) })
+        return StatusRenderer(snapshot: snapshot, now: Self.now, colors: false).lines(selected: nil)
+    }
+
+    @Test
+    func `a recent adb restart shows the notice under the header`() {
+        let lines: [String] = headerLines(restartedAgo: 12)
+
+        #expect(lines[1] == "adb unstable: server restarted 12 s ago; devices reconnect on their own, keep your lease")
+    }
+
+    @Test
+    func `no notice without a recent adb restart`() {
+        #expect(!headerLines(restartedAgo: nil).contains { $0.hasPrefix("adb unstable") })
+        #expect(!headerLines(restartedAgo: 60).contains { $0.hasPrefix("adb unstable") })
+    }
 }

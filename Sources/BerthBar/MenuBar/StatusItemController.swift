@@ -11,6 +11,8 @@ final class StatusItemController: NSObject {
     private let mirror: MirrorController
     private let item: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover: NSPopover = .init()
+    private var shownSymbol: String?
+    private var shownTitle: String?
 
     init(model: StatusModel, launchAtLogin: LaunchAtLogin, autoUpdate: AutoUpdateSetting, launcher: EmulatorLauncher, mirror: MirrorController) {
         self.model = model
@@ -42,12 +44,20 @@ final class StatusItemController: NSObject {
     }
 
     private func refresh() {
-        let state: StatusState = withObservationTracking {
-            model.state
+        let (state, now): (StatusState, Date) = withObservationTracking {
+            (model.state, model.now)
         } onChange: { [weak self] in
             Task { @MainActor in self?.refresh() }
         }
-        item.button?.image = NSImage(systemSymbolName: MenuBarLabel.symbolName(for: state), accessibilityDescription: "berth")
-        item.button?.title = MenuBarLabel.text(for: state).map { " \($0)" } ?? ""
+        let symbol: String = MenuBarLabel.symbolName(for: state, now: now)
+        if symbol != shownSymbol {
+            shownSymbol = symbol
+            item.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "berth")
+        }
+        let title: String = MenuBarLabel.text(for: state).map { " \($0)" } ?? ""
+        if title != shownTitle {
+            shownTitle = title
+            item.button?.title = title
+        }
     }
 }

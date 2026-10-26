@@ -1,6 +1,6 @@
 ---
 issue: BERTH-2
-phase:
+phase: validated
 type: feature
 wiki: [[broker]], [[android-backend]], [[cli]]
 note:
@@ -38,8 +38,65 @@ Decisions (unattended grill, 2026-10-26):
 
 ## Implementation
 
+One brick (autopilot, 2026-10-26), plus two autofix rounds.
+
+**BerthCore**
+- `Format/AdbInstability.swift`: `window` (60 s), `isUnstable(restartedAt:now:)` (unstable while 0 ≤ age < 60 s), and `notice(restartedAt:now:)`, which builds the shared text.
+- `Model.swift`: `StateSnapshot.adbRestartedAt: Date?`, decoded with `decodeIfPresent`.
+- `Format/StateSnapshot+Summary.swift`: `adbNotice(now:)`.
+- `Client.swift`: `DaemonClient.claim` takes an `onNotice` callback, called for `.ok` events.
+
+**BerthDaemon**
+- `Adb/AdbRestartDetector.swift`: pure struct. It keeps the first pid as baseline, skips nil samples, and reports a restart when the pid changes.
+- `Adb/AdbServerPid.swift`: `lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, with the port from `ANDROID_ADB_SERVER_PORT` (default 5037). It only observes the server.
+- `Broker.swift`: takes an injected, non-optional sampler (default `{ nil }`) and samples only when the pool has Android entries. `reap()` runs `watchAdbServer()` first. On a restart it logs one line, stamps `adbRestartedAt` and sends the `.ok` notice to every Android waiter. A claim made while adb is unstable gets the notice too. `snapshot()` stamps `adbRestartedAt` only while adb is unstable.
+- `Daemon.swift`: passes `AdbServerPid.sample` to the broker.
+
+**berth CLI**
+- `ClaimFlow` prints `berth: <notice>` on stderr. `berth run` uses the same flow.
+- `StatusRenderer` shows the notice line under the header, for `status` and `top`, using its live `now`.
+
+**BerthBar**
+- `StatusPanel` shows the notice under the summary line, in orange, using `model.now`.
+- `MenuBarLabel.symbolName(for:now:)` returns `exclamationmark.triangle` while adb is unstable.
+- `StatusItemController.refresh()` tracks `model.now` so the symbol expires on time. It writes the image and title only when they change.
+
+**Tests**
+- Detector cases: baseline, change, nil skipped, same pid.
+- The `isUnstable` window boundary.
+- An old snapshot without `adbRestartedAt` decodes.
+- Status line shown and hidden.
+- Menu bar symbol, including expiry with the live clock.
+- Panel render with the notice.
+- Broker notice on claim while unstable, on a restart while waiting, and none when stable.
+- An iOS-only pool never samples adb.
+
+**Wiki**
+- [[broker]]: new "adb restart watch" section.
+- [[android-backend]]: how the adb server pid is read.
+- [[cli]]: claim and status rows.
+- Index line for broker.
+
 ## Review
 
+### validation (autopilot) — 2026-10-26
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓
+- Round 1, 6 minor findings:
+  - [correctness] The notice age was computed from the snapshot's `generatedAt`, so it froze between snapshots and lingered up to 5 s past the window.
+  - [correctness] The adb sample ran after `live`/`current` were taken. Because of actor reentrancy, those values could be stale.
+  - [structure] The "Android pool only" rule sat in the composition root, untested.
+  - [elegance] The notice string was built just to test the window.
+  - [style] A doc comment restated the code.
+  - [style] Two `let`s had no explicit type.
+  - All 6 fixed by autofix.
+- Round 2, 1 minor finding: [correctness] the status item was redrawn every 1 s tick. Fixed: image and title are written only when they change.
+- Round 3: clean.
+
 ## Verification
+
+- ✅ `swift build` and the full `swift test` are green.
+- ✅ Own daemon run: `BERTH_HOME=/tmp/bb2`, pool with only a nonexistent AVD, device lock taken. Over 2 reap ticks it logged only the start (baseline, no restart line). `berth status` showed no notice, and `--json` had no `adbRestartedAt`. The daemon was killed by pid.
+- ✅ Panel render with the notice, from the `StatusPanelRender` test: orange line "adb unstable: server restarted 12 s ago; devices reconnect on their own, keep your lease" under the summary.
+- The unstable path (a real adb server restart) is proven by unit tests only. Restarting the shared adb server would have dropped other agents' emulators.
 
 ## Feedback
