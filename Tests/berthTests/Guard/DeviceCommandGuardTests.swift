@@ -115,6 +115,7 @@ struct DeviceCommandGuardTests {
         let guardrail: DeviceCommandGuard = .init(environment: ["ANDROID_SERIAL": "emulator-5554"])
         #expect(guardrail.verdict(for: "adb install app.apk") == .allow)
         #expect(guardrail.verdict(for: "./gradlew connectedCheck") == .allow)
+        #expect(guardrail.verdict(for: "./gradlew installDebug") == .allow)
     }
 
     @Test
@@ -140,5 +141,26 @@ extension DeviceCommandGuardTests {
             return
         }
         #expect(reason.contains("berth mirror"))
+    }
+}
+
+extension DeviceCommandGuardTests {
+    private static func reason(for command: String) -> String? {
+        guard case let .deny(reason) = DeviceCommandGuard(environment: [:]).verdict(for: command) else { return nil }
+        return reason
+    }
+
+    @Test(arguments: ["./gradlew :app:installDebug", "./gradlew installRelease", "./gradlew connectedCheck installDebug"])
+    func `gradle install denial points to adb install`(command: String) throws {
+        let reason: String = try #require(Self.reason(for: command))
+        #expect(reason.contains("adb -s"))
+        #expect(reason.contains("install -r"))
+    }
+
+    @Test
+    func `gradle connected denial points to berth run`() throws {
+        let reason: String = try #require(Self.reason(for: "./gradlew connectedDebugAndroidTest"))
+        #expect(reason.contains("berth run"))
+        #expect(!reason.contains("adb -s"))
     }
 }

@@ -1,6 +1,6 @@
 ---
 issue: BERTH-3
-phase:
+phase: validated
 type: improvement
 wiki: [[claude-code]]
 note:
@@ -34,8 +34,34 @@ Decisions (unattended grill, 2026-10-26):
 
 ## Implementation
 
+One brick (autopilot, 2026-10-26).
+- `docs/AGENTS.md`: the "several steps" example runs `./gradlew assembleDebug`, then `adb -s "$SERIAL" install -r app/build/outputs/apk/debug/app-debug.apk`. A new bullet says to install with `adb -s "$SERIAL" install -r` and never with Gradle `install…` tasks, because ddmlib can restart the shared adb server. Another bullet starts "Tell the user:" and names ADB server lifecycle management → "Use existing manually managed server". Only the setting name is written, because the settings path could not be confirmed.
+- `claude-plugin/skills/berth/SKILL.md`: the body is regenerated from `docs/AGENTS.md`. The frontmatter is untouched.
+- `README.md`: one paragraph with the Android Studio advice, after the line about pasting `docs/AGENTS.md`.
+- `Sources/berth/Guard/Rules/GradleRule.swift`: the leaf task names are parsed once (`leafNames`). An `install…` task (not `installDist`) gets the install hint, which also wins when the command mixes install and connected tasks. Connected-only commands keep the `berth run` hint. Verdicts are unchanged.
+- `Tests/berthTests/Guard/DeviceCommandGuardTests.swift`: tests for the install hint (3 commands), the connected hint, and `./gradlew installDebug` allowed when `ANDROID_SERIAL` is set.
+- Wiki [[claude-code]]: the `GradleRule` line notes both hints.
+- No version bump.
+
 ## Review
 
+### validation (autopilot) — 2026-10-26
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓
+- Round 1, 6 minor findings:
+  - [correctness] The install message gave no claim step (`$SERIAL` is unset when the rule fires).
+  - [correctness] No test that install is allowed when `ANDROID_SERIAL` is set.
+  - [style] The tests compared optionals instead of unwrapping them with `#require`.
+  - [style] A needless `ANDROID_SERIAL` prefix on `assembleDebug`.
+  - [correctness] The Android Studio bullet did not tell the agent to relay it to the user.
+  - [correctness] The wiki line was not updated.
+- Autofix: all five code findings are fixed. The orchestrator wrote the wiki line.
+- Round 2: clean.
+
 ## Verification
+
+- ✅ `swift build` and the full `swift test` are green. `PluginSyncTests` confirms the SKILL.md body equals AGENTS.md.
+- ✅ `berth guard` with `./gradlew :app:installDebug` exits 2 with `berth: Gradle install tasks can restart the shared adb server and hit every connected device. Run ./gradlew assemble…, then SERIAL=$(berth claim) and adb -s "$SERIAL" install -r <apk>.`
+- ✅ `berth guard` with `./gradlew connectedDebugAndroidTest` exits 2 with `berth: Gradle connected tasks hit every connected device. Run berth run -- ./gradlew …`
+- ✅ `berth guard` with `ANDROID_SERIAL=emulator-5554 ./gradlew installDebug` exits 0 with no output.
 
 ## Feedback

@@ -13,11 +13,11 @@ struct GradleRule: DeviceCommandRule {
                 tasks.append(argument)
             }
         }
-        let touchesDevices: Bool = tasks.contains { task in
-            guard let last = task.split(separator: ":").last else { return false }
-            return last.hasPrefix("connected") || (last.hasPrefix("install") && last != "installDist")
+        let leafNames: [Substring] = tasks.compactMap { $0.split(separator: ":").last }
+        if leafNames.contains(where: { $0.hasPrefix("install") && $0 != "installDist" }) {
+            return .deny("berth: Gradle install tasks can restart the shared adb server and hit every connected device. Run ./gradlew assemble…, then SERIAL=$(berth claim) and adb -s \"$SERIAL\" install -r <apk>.")
         }
-        guard touchesDevices else { return .allow }
-        return .deny("berth: Gradle connected/install tasks hit every connected device. Run berth run -- ./gradlew …")
+        guard leafNames.contains(where: { $0.hasPrefix("connected") }) else { return .allow }
+        return .deny("berth: Gradle connected tasks hit every connected device. Run berth run -- ./gradlew …")
     }
 }
