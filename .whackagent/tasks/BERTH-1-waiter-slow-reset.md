@@ -1,6 +1,6 @@
 ---
 issue: BERTH-1
-phase:
+phase: review
 type: bug
 wiki: [[broker]]
 note:
@@ -31,8 +31,50 @@ Decisions (unattended grill, 2026-10-26):
 
 ## Implementation
 
+One brick (autopilot, 2026-10-26), reworked in three autofix rounds.
+- `Sources/BerthDaemon/Broker.swift`:
+  - New constant `slowTransition: TimeInterval = 60`.
+  - A booting or resetting slot is slow once it has been in that state for 60 s or more, unless it is a replacement slot.
+  - The bound is per slot, not per waiter. A slow slot gets at most one replacement boot, and a replacement slot is never slow.
+  - Two broker-private maps hold the marks: `replacedSlowSlots` and `replacementSlots`, both serial → the slot's `stateSince` when it was marked. A mark counts only while the slot is still booting or resetting with that same `stateSince`. `pruneReplacementMarks()` drops stale marks on each pass, so a second reset of the same slot starts clean.
+  - Order per waiter in `provisionForWaiters`:
+    1. Take a matching upcoming slot that is not slow.
+    2. If the pool has room: when a matching slow slot without a replacement exists, boot one and mark both slots. Otherwise, when no matching upcoming slot exists at all, boot as before.
+    3. Otherwise wait on any matching slow slot. Nothing is evicted.
+    4. Otherwise the existing pending-stop and eviction paths run.
+  - Helpers: `takeUpcoming(for:where:)` takes a matching upcoming slot. `boot` now returns the new serial (`String?`).
+  - No change to `Slot`, the protocol or the config.
+- `Tests/BerthDaemonTests/BrokerSlowSlotTests.swift` (new) uses the injected clock and FakeBackend `holdResets`/`holdLaunches`, and asserts on `h.slots()` and on grants. It covers:
+  - under 60 s, the waiter keeps waiting;
+  - at 60 s, a replacement boot and a grant;
+  - no room: no eviction and no stop, and the waiter is granted the slot after its reset;
+  - a boot granted to another waiter still lets the slow slot be replaced;
+  - a waiter boots only once past a slow slot;
+  - each of two slow slots gets exactly one replacement;
+  - a slow reset and a slow claim-time boot get one replacement each.
+
 ## Review
 
+### validation (autopilot) — 2026-10-26
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓
+- Round 1: 1 major and 6 minor findings.
+  - Major [correctness]: a waiter booted again every 60 s once its own boot turned slow.
+  - Minor [correctness]: test assertions raced the async boot Task, and the two-waiter test ran at the pool limits.
+  - Minor [structure]: the take-upcoming block was duplicated.
+  - Minor [style]: untyped locals and `grant!`.
+  - All fixed by autofix with a per-waiter flag.
+- Round 2: 1 major and 2 minor findings.
+  - Major [correctness]: the per-waiter flag broke when FIFO handed that waiter's boot to an earlier waiter.
+  - Autofix moved the bound to slots (replacement marks).
+- Round 3, orchestrator: a take-order gap. An already-replaced slow slot was taken first, so a second slow slot never got its replacement. Autofix made slow slots a last resort.
+- Round 4 (final): previous findings fixed. The verifier agrees that "one replacement per slow slot" meets criterion 5. Autofix cap reached, so 2 findings stay open:
+  - 🟡 minor [correctness] `Broker.swift:54`: when the replacement boot fails, the slow slot keeps its "replaced" mark. The waiter then waits on that slow slot until its reset ends, even with room in the pool. Recommendation: fix now. Store the replacement serial with the mark, and drop the mark when that replacement is gone or no longer booting.
+  - 🟡 minor [style] `BrokerSlowSlotTests.swift:140`: the test name says "one slow slot" but the test sets up two (the reset and the held claim-time boot). Recommendation: fix now. Rename it to `a slow reset and a slow claim-time boot get one replacement each`.
+
 ## Verification
+
+- ✅ `swift build` and the full `swift test` are green, 3 runs in a row.
+- ✅ CLI smoke test: `berth --version` and `berth status --help` run.
+- Scheduling criteria are proven by unit tests with the injected clock only. No real slow reset was provoked, because other agents and the shared adb server were in use on this machine.
 
 ## Feedback
