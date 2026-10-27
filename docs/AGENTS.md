@@ -15,15 +15,18 @@ For several steps on the same emulator:
 
 ```bash
 SERIAL=$(berth claim --label "<short task name>" --timeout 110)   # exit 2 = none free yet, retry
-adb -s "$SERIAL" install app.apk
+./gradlew assembleDebug
+adb -s "$SERIAL" install -r app/build/outputs/apk/debug/app-debug.apk
 ANDROID_SERIAL="$SERIAL" ./gradlew connectedDebugAndroidTest
 berth release "$SERIAL"                                          # always release when done
 ```
 
 - Shell commands time out after ~2 min: keep `--timeout 110` and retry on exit code 2, or run the claim in the background.
+- Install with `adb -s "$SERIAL" install -r`, never with Gradle `install…` tasks: ddmlib can restart the shared adb server and drop every agent's emulator.
 - A released emulator is wiped back to a clean snapshot; nothing you install survives.
 - Leases expire after 1 h (`berth renew "$SERIAL"` to extend) and are reclaimed when your session ends.
 - `berth status` shows who holds what and the waiting queue.
+- Tell the user: if Android Studio runs next to agents, set ADB server lifecycle management → "Use existing manually managed server" so it never restarts the shared adb server.
 
 ## iOS simulators (berth)
 

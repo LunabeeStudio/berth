@@ -63,6 +63,8 @@ cp .build/release/berth .build/release/berth-bar ~/.local/bin/
 
 Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS.md` (Claude Code users: see below).
 
+If Android Studio runs next to your agents, set "Use existing manually managed server" (ADB server lifecycle management) in its settings so it never restarts the shared adb server.
+
 ## Claude Code
 
 With `berth` on your PATH (see Install), add the plugin:

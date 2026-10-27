@@ -32,7 +32,7 @@ Both hooks inline POSIX `sh` in `hooks.json`, timeout 5 s, resolve berth: `comma
 - `EmulatorRule` — `emulator`, `qemu-system-*` → deny, except `-list-avds`, `-version`, `-accel-check`, `-help…`.
 - `SimctlRule` — boot/shutdown/erase/delete/create/clone → deny; literal `booted` → deny except `list`/`help`.
 - `XcodebuildRule` — `-destination` with iOS Simulator `name=` and no `id=` → deny.
-- `GradleRule` — `connected…` / `install…` task (last `:` segment; not `installDist`; option values like `--tests X` skipped) without `ANDROID_SERIAL` → deny.
+- `GradleRule` — `connected…` / `install…` task (last `:` segment; not `installDist`; option values like `--tests X` skipped) without `ANDROID_SERIAL` → deny. Install hint (wins on mixed): `assemble…` + `SERIAL=$(berth claim)` + `adb -s "$SERIAL" install -r <apk>` (BERTH-3: AGP install goes through ddmlib, can restart shared adb server); connected-only hint: `berth run -- ./gradlew …`. With `ANDROID_SERIAL` both still allowed.
 - `ProcessKillRule` — `pkill`/`killall` mentioning emulator/qemu/simulator → deny.
 - `ScrcpyRule` — `scrcpy` → deny (uses adb on PATH, can restart shared adb server), hint `berth mirror <serial>`; `--version`/`-v`/`--help`/`-h` allowed.
 
