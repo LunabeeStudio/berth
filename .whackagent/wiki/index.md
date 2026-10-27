@@ -6,7 +6,7 @@ Living knowledge base for project. Pages link to each other and to tasks via `[[
 
 - [[android-backend]] — emulator boot, reset-by-restart, prepare, gotchas
 - [[architecture]] — client/daemon split, socket protocol, modules, key decisions
-- [[broker]] — slot lifecycle, FIFO scheduling, leases, reaping, platform filter
+- [[broker]] — slot lifecycle, FIFO scheduling, leases, reaping, platform filter, adb restart watch
 - [[claude-code]] — plugin: skill + `berth guard` PreToolUse hook, rules, fail-open
 - [[cli]] — commands, exit codes, owner detection, TUI
 - [[ios-backend]] — berth-owned simulators, erase+boot reset, routing

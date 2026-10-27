@@ -1,3 +1,6 @@
+import BerthCore
+import Foundation
+
 enum MenuBarLabel {
     static func text(for state: StatusState) -> String? {
         guard case let .live(snapshot) = state else { return nil }
@@ -6,7 +9,8 @@ enum MenuBarLabel {
         return snapshot.queue.isEmpty ? base : "\(base) +\(snapshot.queue.count)"
     }
 
-    static func symbolName(for state: StatusState) -> String {
-        if case .live = state { "iphone" } else { "iphone.slash" }
+    static func symbolName(for state: StatusState, now: Date) -> String {
+        guard case let .live(snapshot) = state else { return "iphone.slash" }
+        return snapshot.adbNotice(now: now) == nil ? "iphone" : "exclamationmark.triangle"
     }
 }

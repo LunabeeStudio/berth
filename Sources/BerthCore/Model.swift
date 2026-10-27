@@ -117,13 +117,25 @@ public struct StateSnapshot: Codable, Sendable {
     public var maxRunning: Int
     public var pool: [PoolEntry]
     public var generatedAt: Date
+    public var adbRestartedAt: Date?
 
-    public init(slots: [Slot], queue: [WaiterInfo], maxRunning: Int, pool: [PoolEntry], generatedAt: Date) {
+    public init(slots: [Slot], queue: [WaiterInfo], maxRunning: Int, pool: [PoolEntry], generatedAt: Date, adbRestartedAt: Date? = nil) {
         self.slots = slots
         self.queue = queue
         self.maxRunning = maxRunning
         self.pool = pool
         self.generatedAt = generatedAt
+        self.adbRestartedAt = adbRestartedAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
+        slots = try container.decode([Slot].self, forKey: .slots)
+        queue = try container.decode([WaiterInfo].self, forKey: .queue)
+        maxRunning = try container.decode(Int.self, forKey: .maxRunning)
+        pool = try container.decode([PoolEntry].self, forKey: .pool)
+        generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+        adbRestartedAt = try container.decodeIfPresent(Date.self, forKey: .adbRestartedAt)
     }
 }
 
@@ -200,8 +212,9 @@ extension StateSnapshot {
         queue: [WaiterInfo] = [],
         maxRunning: Int = 3,
         pool: [PoolEntry] = [],
-        generatedAt: Date = .init(timeIntervalSince1970: 0)
+        generatedAt: Date = .init(timeIntervalSince1970: 0),
+        adbRestartedAt: Date? = nil
     ) -> StateSnapshot {
-        .init(slots: slots, queue: queue, maxRunning: maxRunning, pool: pool, generatedAt: generatedAt)
+        .init(slots: slots, queue: queue, maxRunning: maxRunning, pool: pool, generatedAt: generatedAt, adbRestartedAt: adbRestartedAt)
     }
 }

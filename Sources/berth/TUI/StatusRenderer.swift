@@ -14,6 +14,9 @@ struct StatusRenderer {
     func lines(selected: Int?) -> [String] {
         var lines = [
             style("berth", "1") + "  \(snapshot.summary)",
+        ]
+        if let notice = snapshot.adbNotice(now: now) { lines.append(style(notice, "33")) }
+        lines += [
             "",
             style("EMULATORS", "1"),
             "  " + style(row(Self.slotColumns.map { ($0.0, $0.1) }), "2"),

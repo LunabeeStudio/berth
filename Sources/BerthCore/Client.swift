@@ -86,11 +86,13 @@ public enum DaemonClient {
     /// - Parameters:
     ///   - timeout: closes the connection after this long when set.
     ///   - onQueued: called with the queue position each time it changes.
+    ///   - onNotice: called with each notice the daemon sends while the claim waits.
     public static func claim(
         _ request: ClaimRequest,
         autoSpawn: Bool = true,
         timeout: Duration? = nil,
-        onQueued: (Int) -> Void = { _ in }
+        onQueued: (Int) -> Void = { _ in },
+        onNotice: (String) -> Void = { _ in }
     ) async throws -> Grant {
         try await withSession(autoSpawn: autoSpawn) { session in
             try await session.send(.claim(request))
@@ -105,7 +107,9 @@ public enum DaemonClient {
                     return grant
                 case let .failure(message):
                     throw ClientError.rejected(message)
-                case .ok, .state:
+                case let .ok(notice):
+                    onNotice(notice)
+                case .state:
                     continue
                 }
             }

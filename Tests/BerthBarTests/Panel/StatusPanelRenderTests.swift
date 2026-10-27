@@ -132,6 +132,12 @@ struct StatusPanelRenderTests {
     }
 
     @Test
+    func `unstable adb renders the notice in the panel`() throws {
+        let state: StatusState = .live(.mock(generatedAt: Self.now, adbRestartedAt: Self.now.addingTimeInterval(-12)))
+        Self.expectPanelSized(try Self.render(state, named: "live-adb-unstable"))
+    }
+
+    @Test
     func `live with a windowed emulator and android pool entries renders the panel`() throws {
         Self.expectPanelSized(try Self.render(Self.windowed(), named: "live-windowed"))
     }

@@ -33,7 +33,7 @@ public enum Daemon {
         }
         await simulators.provision()
 
-        let broker = Broker(config: config, backend: backend, store: StateStore(url: Paths.state))
+        let broker: Broker = .init(config: config, backend: backend, store: StateStore(url: Paths.state), adbServerPid: AdbServerPid.sample)
         await broker.restore()
 
         let executable: String = LaunchAgent.currentExecutablePath()

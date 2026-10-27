@@ -40,6 +40,9 @@ struct StatusPanel: View {
     private func content(_ snapshot: StateSnapshot) -> some View {
         Text(snapshot.summary)
             .font(.headline)
+        if let notice = snapshot.adbNotice(now: model.now) {
+            Text(notice).font(.caption).foregroundStyle(.orange)
+        }
         Text("Emulators").font(.subheadline.bold())
         if snapshot.slots.isEmpty {
             Text("none running").foregroundStyle(.secondary)

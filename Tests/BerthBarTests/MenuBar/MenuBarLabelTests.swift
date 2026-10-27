@@ -44,4 +44,23 @@ struct MenuBarLabelTests {
     func `connecting shows no count`() {
         #expect(MenuBarLabel.text(for: .connecting) == nil)
     }
+
+    @Test
+    func `unstable adb shows the warning symbol`() {
+        let state: StatusState = .live(.mock(adbRestartedAt: .init(timeIntervalSince1970: 90)))
+
+        #expect(MenuBarLabel.symbolName(for: state, now: .init(timeIntervalSince1970: 100)) == "exclamationmark.triangle")
+    }
+
+    @Test
+    func `the warning symbol expires with the live clock`() {
+        let state: StatusState = .live(.mock(adbRestartedAt: .init(timeIntervalSince1970: 90)))
+
+        #expect(MenuBarLabel.symbolName(for: state, now: .init(timeIntervalSince1970: 150)) == "iphone")
+    }
+
+    @Test
+    func `stable adb keeps the iphone symbol`() {
+        #expect(MenuBarLabel.symbolName(for: Self.live([]), now: .init(timeIntervalSince1970: 0)) == "iphone")
+    }
 }
