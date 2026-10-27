@@ -11,6 +11,12 @@ public actor Broker {
         var lastPosition: Int?
     }
 
+    private struct ReplacementMark {
+        let slowSince: Date
+        let replacement: String
+        let replacementSince: Date
+    }
+
     static let missedTicksBeforeVanished = 3
     static let bootFailuresBeforeBroken = 3
     static let brokenCooldown: TimeInterval = 600
@@ -31,8 +37,7 @@ public actor Broker {
     private var missedTicks: [String: Int] = [:]
     private var bootFailures: [String: Int] = [:]
     private var brokenUntil: [String: Date] = [:]
-    private var replacedSlowSlots: [String: Date] = [:]
-    private var replacementSlots: [String: Date] = [:]
+    private var replacedSlowSlots: [String: ReplacementMark] = [:]
     private var generationCounter = 0
     private var adbRestartDetector: AdbRestartDetector = .init()
     private var adbRestartedAt: Date?
@@ -298,7 +303,7 @@ public actor Broker {
     }
 
     /// Each waiter takes one waitable upcoming (booting/resetting) slot, else a new boot, else keeps waiting on a slow one, else evicts an idle slot of another model.
-    /// A slot slow for 60 s gets one replacement boot; the replacement is never slow.
+    /// A slot slow for 60 s has at most one replacement booting at a time; the replacement is not slow while the slot it replaces is still in transition.
     private func provisionForWaiters() {
         let current: Date = now()
         pruneReplacementMarks()
@@ -317,11 +322,10 @@ public actor Broker {
             let candidates = candidateModels(for: waiter.request)
             if slots.count < config.maxRunning, let model = candidates.first(where: hasInstanceRoom) {
                 let matching: [Slot] = upcoming.filter { matches($0, waiter.request) }
-                let unreplaced: Slot? = matching.first { replacedSlowSlots[$0.serial] != $0.stateSince }
+                let unreplaced: Slot? = matching.first { !hasLiveReplacement($0) }
                 if unreplaced != nil || matching.isEmpty, let serial = boot(model, windowed: waiter.request.isWindowed) {
-                    if let unreplaced {
-                        replacedSlowSlots[unreplaced.serial] = unreplaced.stateSince
-                        replacementSlots[serial] = slots[serial]?.stateSince
+                    if let unreplaced, let replacement = slots[serial] {
+                        replacedSlowSlots[unreplaced.serial] = ReplacementMark(slowSince: unreplaced.stateSince, replacement: serial, replacementSince: replacement.stateSince)
                     }
                     continue
                 }
@@ -368,16 +372,25 @@ public actor Broker {
     }
 
     private func isSlow(_ slot: Slot, at date: Date) -> Bool {
-        date.timeIntervalSince(slot.stateSince) >= Self.slowTransition && replacementSlots[slot.serial] != slot.stateSince
+        date.timeIntervalSince(slot.stateSince) >= Self.slowTransition && !replacedSlowSlots.values.contains { $0.replacement == slot.serial && $0.replacementSince == slot.stateSince }
+    }
+
+    private func hasLiveReplacement(_ slot: Slot) -> Bool {
+        guard
+            let mark = replacedSlowSlots[slot.serial],
+            mark.slowSince == slot.stateSince,
+            let replacement = slots[mark.replacement]
+        else {
+            return false
+        }
+        return replacement.state == .booting && replacement.stateSince == mark.replacementSince
     }
 
     private func pruneReplacementMarks() {
-        let isCurrent: (Dictionary<String, Date>.Element) -> Bool = { mark in
-            guard let slot = self.slots[mark.key] else { return false }
-            return slot.stateSince == mark.value && (slot.state == .booting || slot.state == .resetting)
+        replacedSlowSlots = replacedSlowSlots.filter { mark in
+            guard let slot = slots[mark.key] else { return false }
+            return hasLiveReplacement(slot)
         }
-        replacedSlowSlots = replacedSlowSlots.filter(isCurrent)
-        replacementSlots = replacementSlots.filter(isCurrent)
     }
 
     private func isReservedForWindowedWaiter(_ slot: Slot, _ request: ClaimRequest) -> Bool {

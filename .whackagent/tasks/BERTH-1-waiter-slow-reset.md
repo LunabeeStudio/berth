@@ -1,6 +1,6 @@
 ---
 issue: BERTH-1
-phase: review
+phase: validated
 type: bug
 wiki: [[broker]]
 note:
@@ -31,12 +31,12 @@ Decisions (unattended grill, 2026-10-26):
 
 ## Implementation
 
-One brick (autopilot, 2026-10-26), reworked in three autofix rounds.
+One brick (autopilot, 2026-10-26), reworked in four autofix rounds.
 - `Sources/BerthDaemon/Broker.swift`:
   - New constant `slowTransition: TimeInterval = 60`.
   - A booting or resetting slot is slow once it has been in that state for 60 s or more, unless it is a replacement slot.
-  - The bound is per slot, not per waiter. A slow slot gets at most one replacement boot, and a replacement slot is never slow.
-  - Two broker-private maps hold the marks: `replacedSlowSlots` and `replacementSlots`, both serial → the slot's `stateSince` when it was marked. A mark counts only while the slot is still booting or resetting with that same `stateSince`. `pruneReplacementMarks()` drops stale marks on each pass, so a second reset of the same slot starts clean.
+  - The bound is per slot, not per waiter. A slow slot has at most one replacement booting at a time (a new one may boot after the previous fails or is granted), and a replacement slot is not slow while the slot it replaces is still in transition.
+  - One broker-private map, `replacedSlowSlots`: slow serial → `ReplacementMark(slowSince, replacement, replacementSince)`. A slow slot counts as replaced only while it still has `slowSince` and the replacement is still booting with `replacementSince`. A replacement slot is exempt from slowness only while a mark names it. So a failed or granted replacement frees the slow slot for a new replacement. `pruneReplacementMarks()` drops dead marks on each pass.
   - Order per waiter in `provisionForWaiters`:
     1. Take a matching upcoming slot that is not slow.
     2. If the pool has room: when a matching slow slot without a replacement exists, boot one and mark both slots. Otherwise, when no matching upcoming slot exists at all, boot as before.
@@ -51,7 +51,9 @@ One brick (autopilot, 2026-10-26), reworked in three autofix rounds.
   - a boot granted to another waiter still lets the slow slot be replaced;
   - a waiter boots only once past a slow slot;
   - each of two slow slots gets exactly one replacement;
-  - a slow reset and a slow claim-time boot get one replacement each.
+  - a slow reset and a slow claim-time boot get one replacement each;
+  - a failed replacement boot lets the next pass boot another;
+  - a new waiter gets a boot once the replacement went to another waiter.
 
 ## Review
 
@@ -71,10 +73,24 @@ LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓
   - 🟡 minor [correctness] `Broker.swift:54`: when the replacement boot fails, the slow slot keeps its "replaced" mark. The waiter then waits on that slow slot until its reset ends, even with room in the pool. Recommendation: fix now. Store the replacement serial with the mark, and drop the mark when that replacement is gone or no longer booting.
   - 🟡 minor [style] `BrokerSlowSlotTests.swift:140`: the test name says "one slow slot" but the test sets up two (the reset and the held claim-time boot). Recommendation: fix now. Rename it to `a slow reset and a slow claim-time boot get one replacement each`.
 
+### validation — 2026-10-27
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓
+- Round 1: both open findings confirmed. The mark finding was raised to 🟠 major [correctness]: a replaced mark outlived its replacement when the replacement boot failed, and also when the replacement was granted and a new waiter came while the slot was still slow, so that waiter was parked on the slow slot with pool room (criterion 2). Autofix stored the replacement in the mark and counted the mark only while the replacement is still booting. 2 tests were added, and both fail on the old code. The test was renamed.
+- Round 2: 2 minor findings. [elegance] two maps held the same fact: merged into one `ReplacementMark` map. [style] the multi-line `guard` form was fixed.
+- Round 3: 2 minor findings. [style] the doc comment still said "the replacement is never slow": reworded. [style] the private struct was declared before an internal one: moved.
+- Round 4 (user-approved, wording only): [style] a slow slot has at most one replacement booting at a time, not one in total. Comment and task file were reworded.
+- Verdict: clean.
+
 ## Verification
 
 - ✅ `swift build` and the full `swift test` are green, 3 runs in a row.
 - ✅ CLI smoke test: `berth --version` and `berth status --help` run.
-- Scheduling criteria are proven by unit tests with the injected clock only. No real slow reset was provoked, because other agents and the shared adb server were in use on this machine.
+- ✅ `swift test --filter BrokerSlowSlot`: 10 tests, green after the last round. The full `swift test` is green after the logic change.
+- ✅ Real emulator, final code: an own daemon (`BERTH_HOME=/tmp/bt1`) on a throwaway AVD with pool room, after `kill -STOP` on the emulator relaunched by a reset.
+  - The first claim waits, then a replacement boots 62 s after the reset began, and the claim gets it.
+  - A second claim boots another emulator at once (8 s) instead of waiting on the slow slot.
+  - After `kill -CONT`, the slow slot ends its reset and becomes `free`.
+  - A fast reset (about 5 s) is waited on and reused, with no new boot.
+  - The adb server was not touched.
 
 ## Feedback

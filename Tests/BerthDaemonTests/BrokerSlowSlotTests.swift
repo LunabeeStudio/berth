@@ -137,7 +137,7 @@ struct BrokerSlowSlotTests {
     }
 
     @Test
-    func `two waiters on one slow slot give each slow slot one replacement`() async throws {
+    func `a slow reset and a slow claim-time boot get one replacement each`() async throws {
         let h: Harness = .init(maxRunning: 5, pool: [PoolEntry(name: "Pixel", maxInstances: 5)])
         try await startSlowReset(h)
         h.backend.holdLaunches(true)
@@ -156,6 +156,40 @@ struct BrokerSlowSlotTests {
         let finalCount: Int = await h.slots().count
         #expect(finalCount == 4)
         h.backend.holdLaunches(false)
+    }
+
+    @Test
+    func `a failed replacement boot lets the next pass boot another`() async throws {
+        let h: Harness = .init(maxRunning: 5, pool: [PoolEntry(name: "Pixel", maxInstances: 5)])
+        try await startSlowReset(h)
+        h.backend.holdLaunches(true)
+
+        _ = await h.claim(pid: 2)
+        h.clock.advance(60)
+        await h.broker.reap()
+        try await eventually { h.backend.launches.count == 2 }
+
+        h.backend.failBoot("Pixel")
+        h.backend.holdLaunches(false)
+        try await eventually {
+            await h.broker.reap()
+            return h.backend.launches.count >= 3
+        }
+    }
+
+    @Test
+    func `a new waiter gets a boot once the replacement went to another waiter`() async throws {
+        let h: Harness = .init(maxRunning: 5, pool: [PoolEntry(name: "Pixel", maxInstances: 5)])
+        try await startSlowReset(h)
+
+        let first: Client = await h.claim(pid: 2)
+        h.clock.advance(60)
+        await h.broker.reap()
+        try await eventually { first.grant != nil }
+
+        _ = await h.claim(pid: 3)
+        await h.broker.reap()
+        try await eventually { h.backend.launches.count == 3 }
     }
 }
 
