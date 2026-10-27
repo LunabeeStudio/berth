@@ -11,9 +11,16 @@ public actor Broker {
         var lastPosition: Int?
     }
 
+    private struct ReplacementMark {
+        let slowSince: Date
+        let replacement: String
+        let replacementSince: Date
+    }
+
     static let missedTicksBeforeVanished = 3
     static let bootFailuresBeforeBroken = 3
     static let brokenCooldown: TimeInterval = 600
+    static let slowTransition: TimeInterval = 60
 
     private let config: Config
     private let backend: any DeviceBackend
@@ -30,6 +37,7 @@ public actor Broker {
     private var missedTicks: [String: Int] = [:]
     private var bootFailures: [String: Int] = [:]
     private var brokenUntil: [String: Date] = [:]
+    private var replacedSlowSlots: [String: ReplacementMark] = [:]
     private var generationCounter = 0
     private var adbRestartDetector: AdbRestartDetector = .init()
     private var adbRestartedAt: Date?
@@ -294,21 +302,35 @@ public actor Broker {
         }
     }
 
-    /// Each waiter takes one upcoming (booting/resetting) slot, else a new boot, else evicts an idle slot of another model.
+    /// Each waiter takes one waitable upcoming (booting/resetting) slot, else a new boot, else keeps waiting on a slow one, else evicts an idle slot of another model.
+    /// A slot slow for 60 s has at most one replacement booting at a time; the replacement is not slow while the slot it replaces is still in transition.
     private func provisionForWaiters() {
-        var upcoming = slots.values.filter { $0.state == .booting || $0.state == .resetting }
+        let current: Date = now()
+        pruneReplacementMarks()
+        var upcoming: [Slot] = slots.values.filter { $0.state == .booting || $0.state == .resetting }
         var pendingStops = slots.values.filter { $0.state == .stopping }.count
         var stoppingByModel: [String: Int] = slots.values.filter { $0.state == .stopping }.reduce(into: [:]) { $0[$1.model, default: 0] += 1 }
 
+        func takeUpcoming(for request: ClaimRequest, where predicate: (Slot) -> Bool = { _ in true }) -> Bool {
+            guard let index = upcoming.firstIndex(where: { matches($0, request) && predicate($0) }) else { return false }
+            upcoming.remove(at: index)
+            return true
+        }
+
         for waiter in waiters {
-            if let index = upcoming.firstIndex(where: { matches($0, waiter.request) }) {
-                upcoming.remove(at: index)
-                continue
-            }
+            if takeUpcoming(for: waiter.request, where: { !isSlow($0, at: current) }) { continue }
             let candidates = candidateModels(for: waiter.request)
             if slots.count < config.maxRunning, let model = candidates.first(where: hasInstanceRoom) {
-                if boot(model, windowed: waiter.request.isWindowed) { continue }
+                let matching: [Slot] = upcoming.filter { matches($0, waiter.request) }
+                let unreplaced: Slot? = matching.first { !hasLiveReplacement($0) }
+                if unreplaced != nil || matching.isEmpty, let serial = boot(model, windowed: waiter.request.isWindowed) {
+                    if let unreplaced, let replacement = slots[serial] {
+                        replacedSlowSlots[unreplaced.serial] = ReplacementMark(slowSince: unreplaced.stateSince, replacement: serial, replacementSince: replacement.stateSince)
+                    }
+                    continue
+                }
             }
+            if takeUpcoming(for: waiter.request) { continue }
             if !candidates.contains(where: hasInstanceRoom) {
                 if waiter.request.isWindowed { freeInstance(of: waiter.request, pendingStops: &pendingStops, stoppingByModel: &stoppingByModel) }
                 continue
@@ -347,6 +369,28 @@ public actor Broker {
         slots.values
             .filter { $0.state == .free && matches($0, request) && !isReservedForWindowedWaiter($0, request) }
             .min { ($0.windowed ? 1 : 0, $0.stateSince) < ($1.windowed ? 1 : 0, $1.stateSince) }
+    }
+
+    private func isSlow(_ slot: Slot, at date: Date) -> Bool {
+        date.timeIntervalSince(slot.stateSince) >= Self.slowTransition && !replacedSlowSlots.values.contains { $0.replacement == slot.serial && $0.replacementSince == slot.stateSince }
+    }
+
+    private func hasLiveReplacement(_ slot: Slot) -> Bool {
+        guard
+            let mark = replacedSlowSlots[slot.serial],
+            mark.slowSince == slot.stateSince,
+            let replacement = slots[mark.replacement]
+        else {
+            return false
+        }
+        return replacement.state == .booting && replacement.stateSince == mark.replacementSince
+    }
+
+    private func pruneReplacementMarks() {
+        replacedSlowSlots = replacedSlowSlots.filter { mark in
+            guard let slot = slots[mark.key] else { return false }
+            return hasLiveReplacement(slot)
+        }
     }
 
     private func isReservedForWindowedWaiter(_ slot: Slot, _ request: ClaimRequest) -> Bool {
@@ -405,9 +449,9 @@ public actor Broker {
 
     // region Slot lifecycle
 
-    private func boot(_ model: String, windowed: Bool) -> Bool {
+    private func boot(_ model: String, windowed: Bool) -> String? {
         let taken = Set(slots.keys).union(externalSerials)
-        guard let serial = backend.nextSerial(model: model, taken: taken) else { return false }
+        guard let serial = backend.nextSerial(model: model, taken: taken) else { return nil }
         let generation = nextGeneration()
         slots[serial] = Slot(serial: serial, model: model, pid: nil, state: .booting, stateSince: now(), generation: generation, windowed: windowed)
         Log.info("\(serial): booting \(model)\(windowed ? " (windowed)" : "")")
@@ -422,7 +466,7 @@ public actor Broker {
                 self.bootFinished(serial: serial, model: model, generation: generation, error: error)
             }
         }
-        return true
+        return serial
     }
 
     private func recordPID(_ pid: Int32?, serial: String, generation: Int) {
