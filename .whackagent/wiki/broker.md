@@ -9,7 +9,8 @@
 
 ## Scheduling (`schedule()`, after every mutation)
 1. `grantFreeSlots` — FIFO; each waiter takes oldest free matching slot (`model` nil = any model of request platform; `ClaimRequest.resolvedPlatform`, nil = android for old clients).
-2. `provisionForWaiters` — leftover waiters each claim one upcoming slot (booting/resetting), else boot new (if `slots.count < maxRunning` and model under `maxInstances`), else count pending stop, else **evict** oldest free slot (free here = nobody wants it).
+2. `provisionForWaiters` — leftover waiters each claim one upcoming slot (booting/resetting) that is not slow, else boot new (if `slots.count < maxRunning` and model under `maxInstances`), else wait on slow upcoming slot, else count pending stop, else **evict** oldest free slot (free here = nobody wants it).
+   - **Slow slot (BERTH-1)**: booting/resetting ≥ `slowTransition` (60 s). Pool room → waiter boots replacement instead of waiting. Max one replacement *booting* at a time per slow slot (`replacedSlowSlots`: slow serial → `ReplacementMark`); replacement fails or gets granted → next pass may boot another. Replacement not slow while its mark lives. No room → waiter waits on slow slot; never evicts, never stops it. Slow slot ends its reset → free as usual. Reap tick (5 s) re-runs it, no own timer.
 3. `publishPositions` — `.queued(position)` only on change.
 Waiter for busy AVD never blocks waiter fitting free one. Android waiter never takes iOS slot, and reverse.
 
