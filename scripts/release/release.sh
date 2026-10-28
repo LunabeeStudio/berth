@@ -35,6 +35,7 @@ tag=""
 tag_created=false
 draft_created=false
 published=false
+bumped=false
 pr_branch=""
 pr_url=""
 next=""
@@ -61,8 +62,14 @@ on_error() {
         echo "  git switch main; git branch -D $pr_branch; git push --delete origin $pr_branch" >&2
         if [[ -n "$pr_url" ]]; then echo "  gh pr close $pr_url   (only if it is not merged)" >&2; fi
     fi
-    if $published; then
+    if $bumped; then
+        echo "Release $tag is live and main holds $next. Close the Plane module by hand:" >&2
+        echo "  .github/board/wa-backlog close-milestone $version   (or in Plane)" >&2
+    elif $published; then
         echo "Release $tag is live, do not delete it: open the bump PR to $next by hand." >&2
+        if [[ -z "$module_kept" ]]; then
+            echo "Then close the Plane module: .github/board/wa-backlog close-milestone $version   (or in Plane)" >&2
+        fi
     elif $tag_created || $draft_created; then
         echo "Clean up before retrying:" >&2
         if $tag_created; then echo "  git push --delete origin $tag; git tag -d $tag" >&2; fi
@@ -87,13 +94,16 @@ next_minor() {
 }
 
 lowest_plane_version() {
-    [[ -n "${PLANE_API_KEY:-}" ]] || fail "no version given: pass X.Y.Z or export PLANE_API_KEY"
-    local milestones
-    milestones="$("$root/.github/board/wa-backlog" milestones)"
     python3 -c '
 import json, re, sys
 titles = [m["title"] for m in json.loads(sys.argv[1]) if m["open"] and re.fullmatch(sys.argv[2], m["title"])]
-print(min(titles, key=lambda t: tuple(map(int, t.split(".")))) if titles else "")' "$milestones" "$semver"
+print(min(titles, key=lambda t: tuple(map(int, t.split(".")))) if titles else "")' "$1" "$semver"
+}
+
+plane_module_open() {
+    python3 -c '
+import json, sys
+sys.exit(0 if any(m["open"] and m["title"] == sys.argv[2] for m in json.loads(sys.argv[1])) else 1)' "$1" "$2"
 }
 
 check_tools() {
@@ -163,14 +173,34 @@ version_pr() {
 check_tools
 check_main
 
+# Why the Plane module stays open after the release; empty means step 10 closes it.
+module_kept=""
+milestones=""
+if [[ -z "${PLANE_API_KEY:-}" ]]; then
+    module_kept="PLANE_API_KEY not set"
+elif ! milestones="$("$root/.github/board/wa-backlog" milestones)"; then
+    module_kept="Plane could not be read"
+fi
+
 if [[ -z "$version" ]]; then
-    version="$(lowest_plane_version)"
+    [[ -n "${PLANE_API_KEY:-}" ]] || fail "no version given: pass X.Y.Z or export PLANE_API_KEY"
+    [[ -z "$module_kept" ]] || fail "no version given and $module_kept: pass X.Y.Z"
+    version="$(lowest_plane_version "$milestones")"
     [[ -n "$version" ]] || fail "no open Plane module titled X.Y.Z: pass X.Y.Z"
     echo "Version $version (lowest open Plane module)"
 fi
 tag="v$version"
 next="$(next_minor "$version")"
 check_version_free
+if [[ -z "$module_kept" ]] && ! plane_module_open "$milestones" "$version"; then
+    module_kept="no open Plane module $version"
+fi
+
+if [[ -z "$module_kept" ]]; then
+    close_plan="close Plane module $version"
+else
+    close_plan="leave Plane module $version open: $module_kept"
+fi
 
 if versions_are "$version"; then
     set_plan="plugin versions already $version, no version PR"
@@ -189,6 +219,7 @@ Release $tag. Plan:
   7. check both assets on the draft
   8. publish $tag as latest
   9. open a PR bumping plugin versions to $next and merge it
+ 10. $close_plan
 PLAN
 
 if $dry_run; then
@@ -198,43 +229,53 @@ fi
 $assume_yes || confirm
 
 if versions_are "$version"; then
-    step "1/9 plugin versions already $version"
+    step "1/10 plugin versions already $version"
 else
-    step "1/9 setting plugin versions to $version"
+    step "1/10 setting plugin versions to $version"
     version_pr set "$version" "Set version $version"
 fi
 
-step "2/9 swift test"
+step "2/10 swift test"
 swift test
 
-step "3/9 building assets"
+step "3/10 building assets"
 dist="$(mktemp -d)"
 trap 'rm -rf "$dist"' EXIT
 scripts/release/package.sh "$version" "$dist"
 
-step "4/9 tagging $tag"
+step "4/10 tagging $tag"
 git tag "$tag"
 tag_created=true
 git push --quiet origin "$tag"
 
-step "5/9 creating draft release $tag"
+step "5/10 creating draft release $tag"
 gh release create "$tag" --draft --verify-tag --generate-notes --title "$tag"
 draft_created=true
 
-step "6/9 uploading assets"
+step "6/10 uploading assets"
 gh release upload "$tag" "$dist/${assets[0]}" "$dist/${assets[1]}"
 
-step "7/9 checking assets on the draft"
+step "7/10 checking assets on the draft"
 attached="$(gh release view "$tag" --json assets --jq '.assets[].name')"
 for asset in "${assets[@]}"; do
     grep -qxF "$asset" <<< "$attached" || fail "$asset is missing on the draft $tag"
 done
 
-step "8/9 publishing $tag"
+step "8/10 publishing $tag"
 gh release edit "$tag" --draft=false --latest
 published=true
 
-step "9/9 bumping plugin versions to $next"
+step "9/10 bumping plugin versions to $next"
 version_pr bump "$next" "Bump version to $next for the next release"
+bumped=true
 
-echo "Released $tag. main holds $next."
+if [[ -z "$module_kept" ]]; then
+    step "10/10 closing Plane module $version"
+    "$root/.github/board/wa-backlog" close-milestone "$version" > /dev/null
+    module_result="Plane module $version closed."
+else
+    step "10/10 Plane module $version left open: $module_kept"
+    module_result="Plane module $version left open: $module_kept."
+fi
+
+echo "Released $tag. main holds $next. $module_result"
