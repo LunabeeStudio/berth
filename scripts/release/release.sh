@@ -141,7 +141,8 @@ confirm() {
 }
 
 version_pr() {
-    local kind="$1" target="$2" message="$3" branch="release/$kind-$target"
+    local kind="$1" target="$2" message="$3"
+    local branch="release/$kind-$target"
     pr_branch="$branch"
     git switch --quiet -c "$branch" main
     sed -i '' -E "s/(\"version\": \")[^\"]*(\")/\1$target\2/" "$plugin_file" "$marketplace_file"
