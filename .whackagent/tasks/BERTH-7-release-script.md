@@ -1,6 +1,6 @@
 ---
 issue: BERTH-7
-phase: in-progress
+phase: validated
 type: feature
 wiki: [[release]]
 note:
@@ -53,4 +53,60 @@ Decisions (unattended grill, 2026-10-28):
 
 ## Implementation
 
+One brick (autopilot, 2026-10-28), then three autofix rounds.
+- `scripts/release/release.sh` (new, executable):
+  - Parses `[X.Y.Z] [--yes] [--dry-run]`. One shared pattern (`semver_part`, `semver`) rejects leading zeros, for the argument and for Plane module titles.
+  - Without an argument, `lowest_plane_version` reads `.github/board/wa-backlog milestones`.
+  - Checks run before any change, in this order:
+    - `check_tools`: tools on PATH, `gh auth status`, macOS arm64.
+    - `check_main`: on `main`; clean tree with `--untracked-files=normal`; equal to `origin/main` after a fetch.
+    - `check_version_free`: the local tag; the remote tag with `ls-remote --exit-code` (exit 2 = absent, any other failure stops); the release with `gh api …/releases/tags/<tag>` (only HTTP 404 = absent); a leftover draft with `gh release list`.
+  - Then the script prints the plan and asks `Proceed? [y/N]`. `--yes` skips the question; `--dry-run` exits 0 after the plan.
+  - Steps 1 to 9 follow the Decisions order. `version_pr` handles both the set and the bump:
+    - branch `release/<kind>-<version>`, then a `sed` on the `"version"` lines;
+    - re-check the versions with `plutil`, commit, push;
+    - `gh pr create`, then `gh pr merge --squash --delete-branch`;
+    - pull, delete the local branch.
+  - `swift test` and `package.sh` output stays on screen.
+  - ERR trap (`set -E`): it returns silently in subshells. In the main shell it prints the failed step, then the cleanup for what the run created:
+    - a half-done version PR;
+    - the tag and draft delete commands;
+    - after publish, "release is live, do not delete it" instead.
+- `.github/workflows/release.yml`: drops the tag trigger, the tag/version check and the `publish` job. It keeps the PR build check (`swift test` + `package.sh 0.0.0` + artifact).
+- `docs/RELEASING.md`: rewritten around the script, covering prerequisites, usage, the steps and the cleanup after a failure.
+- Wiki [[release]]: rewritten for the script flow.
+
+Runtime check (CLI, in a scratch clone with a bare origin and `GH_REPO=LunabeeStudio/berth`; nothing written to GitHub):
+- `bash -n` OK. `shellcheck` is not installed.
+- `--dry-run 9.9.9`: plan printed, exit 0, refs and status unchanged.
+- No argument with `PLANE_API_KEY` set, `--dry-run`: "Version 0.4.0 (lowest open Plane module)", exit 0.
+- Failures, each with a message naming the fix:
+  - `1.2` and `01.2.3` exit 64.
+  - Exit 1 for: wrong branch; dirty tree; untracked file; main ahead of origin; local tag; remote tag; real `v0.3.0` release (read-only `gh api`); no argument without `PLANE_API_KEY`.
+- Prompt answered `n`: exit 1, nothing changed.
+- Forced failures, with a fake `gh` and `swift` in the scratch directory: each prints one FAILED block.
+  - Step 2 fails: no cleanup lines.
+  - Step 6 fails: the tag and draft delete commands.
+  - Step 9 fails after publish: the PR cleanup lines and "Release v9.9.9 is live, do not delete it", with no delete-release command.
+- `swift build` green.
+- Not run: the real flow against GitHub (version PR, tag, release, upload, publish, bump). It is left to the human release check.
+
 ## Review
+
+### validation (autopilot) — 2026-10-28
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓
+- Round 1: 1 major and 9 minor findings.
+  - Major [correctness]: a failure at step 9, after publish, printed delete commands for the live release.
+  - Minor:
+    - remote tag and release checks read any failure as "absent";
+    - version PR branches were left on origin, with no cleanup output;
+    - the cleanup block printed twice from command substitutions;
+    - test and build output was discarded;
+    - untracked files could hide behind `status.showUntrackedFiles=no`;
+    - leading zeros crashed `next_minor`;
+    - the wiki was not synced (orchestrator synced it);
+    - 2 function renames.
+  - All fixed by autofix.
+- Round 2: 2 minor findings, both fixed: Plane titles skipped the leading-zero rule, and `version_pr` had an unused `kind`.
+- Round 3: 1 minor [structure] finding: the pattern was built twice. Fixed exactly as suggested: the anchored `$semver` is passed to Python. The orchestrator checked it: `0.4.0` and `10.20.3` match; `0.08.0` and `1.2` don't. The no-argument and `9.9.9` dry runs exit 0.
+- Clean. The wiki [[release]] is synced and checked against the script by the verifier.
