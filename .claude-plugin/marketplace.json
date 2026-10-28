@@ -8,7 +8,7 @@
       "name": "berth",
       "source": "./claude-plugin",
       "description": "Berth rules for agents plus a guard hook that blocks device commands outside a berth lease.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "category": "development",
       "keywords": ["android", "ios", "emulator", "simulator", "adb", "parallel agents"]
     }
