@@ -1,6 +1,6 @@
 ---
 issue: BERTH-9
-phase: in-progress
+phase: validated
 type: feature
 wiki: [[release]]
 note:
@@ -35,4 +35,38 @@ Decisions (2026-10-28):
 
 ## Implementation
 
+Orchestrator, 2026-10-28.
+- `scripts/release/release.sh`:
+  - Plane is read once, before any change, when `PLANE_API_KEY` is set. `module_kept` holds the reason the module stays open: no key, Plane unreadable, or no open module `X.Y.Z`. Empty means step 10 closes it.
+  - `lowest_plane_version` now takes the milestones JSON. `plane_module_open` is new.
+  - Without an argument, the guard tests `module_kept`, not the read's output, so a failed read that printed something still stops the script.
+  - Plan line 10 and step `10/10`: close through `wa-backlog close-milestone`, or "left open: <reason>". The final line names the result.
+  - New `bumped` flag. A step 10 failure prints that the release is live and `main` is bumped, plus the manual close. A step 9 failure also hints at the close when the module was going to be closed.
+  - Steps renumbered `/10`.
+- `docs/RELEASING.md` and wiki [[release]]: step 10, the skip reasons, and the manual close after a failure.
+
+Proof: scratch clone with a local bare `origin`, a fake `gh`, `swift` and `wa-backlog`, and the real `package.sh`. Nothing was written to GitHub or Plane.
+
+| Case | Exit | Result |
+|---|---|---|
+| Open module | 0 | closed, "Plane module 9.9.0 closed." |
+| No key, with argument | 0 | left open, reason given, no close call |
+| Plane down, with argument | 0 | left open, reason given, no close call |
+| No open module, with argument | 0 | left open, reason given, no close call |
+| No argument, open module | 0 | resolves 9.9.0, closes it |
+| No argument, Plane down | 1 | stops before any change |
+| No argument, Plane fails after partial output | 1 | stops before any change |
+| No argument, no key | 1 | stops before any change |
+| Close fails | 1 | live and bumped message, plus the manual close command |
+| Bump fails | 1 | live message, plus the close hint (with key) or no hint (no key) |
+| `--dry-run` | 0 | plan line 10, no close call |
+
 ## Review
+
+### validation — 2026-10-28
+LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓
+- 2 minor [correctness] findings:
+  - The no-argument guard tested `$milestones`, so a failed read that printed partial output got through.
+  - A step 9 failure didn't mention closing the module, which the docs promise.
+- Both fixed exactly as recommended, and the scenarios re-run green: partial read → exit 1; bump failure → close hint.
+- The verifier found no other `set -u`, ERR or expansion issue in the whole script. The wiki [[release]] is synced.

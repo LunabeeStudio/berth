@@ -2,7 +2,7 @@
 
 One script ships a release: `scripts/release/release.sh`. A person runs it, on a Mac. It needs no Claude and no CI.
 
-The script tests and builds `berth` and `berth-bar` for macOS arm64, tags the commit, and publishes a GitHub release with `berth-macos-arm64.tar.gz` and its `.sha256`. It then bumps the plugin versions for the next release.
+The script tests and builds `berth` and `berth-bar` for macOS arm64, tags the commit, and publishes a GitHub release with `berth-macos-arm64.tar.gz` and its `.sha256`. It then bumps the plugin versions for the next release and closes the Plane module.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ The script tests and builds `berth` and `berth-bar` for macOS arm64, tags the co
 - `git`, `gh`, `swift`, `plutil` and `python3` on PATH.
 - `gh` authenticated: `gh auth login`.
 - Your checkout on `main`, clean, and equal to `origin/main`.
-- `PLANE_API_KEY` exported, only when you give no version.
+- `PLANE_API_KEY` exported: needed when you give no version, and to close the Plane module.
 
 The script checks all of this first and names the fix. It also stops if the tag `vX.Y.Z` or a release with that name already exists.
 
@@ -39,10 +39,9 @@ The script prints one line per step.
 7. Checks that both assets are on the draft, by name.
 8. Publishes the release and marks it latest. Only now do `install.sh` and auto update see it.
 9. Opens a `release/bump-X.(Y+1).0` PR that sets the plugin versions to `X.(Y+1).0`, and merges it at once.
+10. Closes the Plane module `X.Y.Z` (status `completed`). The module stays open, and the plan says why, when `PLANE_API_KEY` is not set, when Plane cannot be read, or when no open module `X.Y.Z` exists. The release still ships in those cases.
 
 Tests and build run before the tag is pushed. A failure there leaves no tag and no release.
-
-The script never closes the Plane module. Do that yourself.
 
 ## If it fails
 
@@ -67,4 +66,10 @@ A version PR can be left half done. Switch to `main`, delete the local `release/
 
 Fix the cause, then run the script again. There is no resume: a rerun starts from the checks. If the version PR already merged, the script sees the versions and skips step 1.
 
-After step 8 the release is live. Never delete it. If step 9 fails, open the bump PR to `X.(Y+1).0` by hand.
+After step 8 the release is live. Never delete it. If step 9 fails, open the bump PR to `X.(Y+1).0` by hand, then close the Plane module. If step 10 fails, close the module by hand:
+
+```bash
+.github/board/wa-backlog close-milestone X.Y.Z
+```
+
+Or set the module to Completed in Plane.
