@@ -1,5 +1,7 @@
 struct AdbRule: DeviceCommandRule {
-    private static let untargeted: Set<String> = ["devices", "version", "help", "start-server"]
+    private static let untargeted: Set<String> = [
+        "devices", "version", "help", "start-server", "connect", "disconnect", "pair", "mdns",
+    ]
 
     func verdict(for command: SimpleCommand, environment: [String: String]) -> GuardVerdict? {
         guard command.name == "adb" else { return nil }
