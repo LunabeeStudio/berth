@@ -1,7 +1,7 @@
 <!-- board-contract: 2.4 · sections BOARD.md → Pull requests requires: keep the three headings -->
 ## Ticket
 
-<!-- exactly one card link: [BERTH-42](http://rlatapy-macbook.local:8391/lunabee/browse/BERTH-42/) -->
+<!-- exactly one card link: [BERTH-42](https://projects.lunabee.ovh/lunabee/browse/BERTH-42/) -->
 
 ## Acceptance criteria
 

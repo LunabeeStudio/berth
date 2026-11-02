@@ -17,7 +17,7 @@ You never move a card on the board. You only *claim* a ticket (a lock) before wo
 
 ## This board: Plane
 
-The board is a Plane project on a self-hosted Plane server: http://rlatapy-macbook.local:8391/lunabee/projects/492f893c-dda7-4438-a143-4692bf2377bf/issues/. Code, branches, claims and pull requests stay on GitHub. The Plane board is experimental. The board CLI needs the Plane API key in the `PLANE_API_KEY` environment variable; never write the key in the repository.
+The board is a Plane project on a self-hosted Plane server: https://projects.lunabee.ovh/lunabee/projects/492f893c-dda7-4438-a143-4692bf2377bf/issues/. Code, branches, claims and pull requests stay on GitHub. The Plane board is experimental. The board CLI needs the Plane API key in the `PLANE_API_KEY` environment variable; never write the key in the repository.
 
 ### What lives where
 
@@ -53,7 +53,7 @@ Create the ticket's branch from the fork point and push it at once: `git switch 
 
 ### Ticket link
 
-- A ticket PR's body carries exactly one card link under `## Ticket`: `[<id>](http://rlatapy-macbook.local:8391/lunabee/browse/<id>/)`, never `Closes`.
+- A ticket PR's body carries exactly one card link under `## Ticket`: `[<id>](https://projects.lunabee.ovh/lunabee/browse/<id>/)`, never `Closes`.
 - The workflow finds the ticket from the branch name first, then from that card link, and adds the PR as a link on the card. Never link it by hand.
 - A PR body with two card links moves nothing: the workflow reports it on the PR.
 - A PR that is not a ticket's writes `Sprint <parent>` or `n/a` under `## Ticket`, never a card link.
