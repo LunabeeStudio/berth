@@ -38,6 +38,16 @@ backlog:
                                #     not here. Forces branch.per_task: true, branch.base = close.target
                                #     (named branch). Ignores close.strategy for tickets:
                                #     /wa-validate marks PR ready, /wa-close merges on your yes.
+  hooks: webhook               # plane only — WHAT runs board hooks (wa-backlog hook) on GitHub events.
+                               #   actions — caller workflow on self-hosted runner next to Plane (default):
+                               #     /wa-setup installs caller, runner label, secret WA_PLANE_API_KEY.
+                               #   webhook — your own receiver (GitHub App webhook → server) runs
+                               #     `wa-backlog hook --event --payload` itself (providers/plane/README.md,
+                               #     *Webhook receiver*): no caller, no runner, no secret installed.
+                               #     Recommended when your team runs one.
+  hooks_app: https://github.com/apps/lunabee-plane-board/installations/177790700  # webhook only — receiver's GitHub App installation, as link
+                               # (https://github.com/apps/<slug>/installations/<id>). /wa-setup has this
+                               # repo added to it: installing App = switch that turns hooks on.
   milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
                                # only — github read repo milestones. New task join LAST entry →
                                # new work never grow current/past scope. You own list: add entry
