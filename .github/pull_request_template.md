@@ -1,7 +1,6 @@
-<!-- board-contract: 2.4 · sections BOARD.md → Pull requests requires: keep the three headings -->
 ## Ticket
 
-<!-- exactly one card link: [BERTH-42](https://projects.lunabee.ovh/lunabee/browse/BERTH-42/) -->
+<!-- the card this PR moves, unless the branch or title already names its key: [BERTH-12](https://projects.lunabee.ovh/lunabee/browse/BERTH-12/) -->
 
 ## Acceptance criteria
 
