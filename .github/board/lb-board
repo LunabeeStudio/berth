@@ -46,8 +46,6 @@ SPRINT_LABEL = "lb-sprint"
 PRIORITIES = ["urgent", "high", "medium", "low", "none"]
 
 EXIT_ERROR, EXIT_USAGE, EXIT_TAKEN, EXIT_WRONG_STATE = 1, 2, 3, 4
-# Same as the plugin manifests: /lb-board-check compares a repo's vendored copy with the plugin's to spot a stale one.
-VERSION = "0.3.0"
 
 
 class Failure(Exception):
@@ -1390,10 +1388,6 @@ def op_config(args):
     emit(load())
 
 
-def op_version(args):
-    emit({"version": VERSION})
-
-
 def op_list(args):
     board = open_board()
     config = board.config
@@ -2110,9 +2104,6 @@ def parser():
 
     s = sub.add_parser("config", help="print resolved settings")
     s.set_defaults(func=op_config)
-
-    s = sub.add_parser("version", help="this script's version (absent before 0.3.0)")
-    s.set_defaults(func=op_version)
 
     s = sub.add_parser("list", help="board rows in priority order, with claims and open PRs")
     s.add_argument("--state", help="comma-separated states")
