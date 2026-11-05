@@ -69,7 +69,7 @@ Fix the cause, then run the script again. There is no resume: a rerun starts fro
 After step 8 the release is live. Never delete it. If step 9 fails, open the bump PR to `X.(Y+1).0` by hand, then close the Plane module. If step 10 fails, close the module by hand:
 
 ```bash
-.github/board/wa-backlog close-milestone X.Y.Z
+.lunabee/board/lb-board close-milestone X.Y.Z
 ```
 
 Or set the module to Completed in Plane.
