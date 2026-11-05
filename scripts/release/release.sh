@@ -64,11 +64,11 @@ on_error() {
     fi
     if $bumped; then
         echo "Release $tag is live and main holds $next. Close the Plane module by hand:" >&2
-        echo "  .github/board/wa-backlog close-milestone $version   (or in Plane)" >&2
+        echo "  .lunabee/board/lb-board close-milestone $version   (or in Plane)" >&2
     elif $published; then
         echo "Release $tag is live, do not delete it: open the bump PR to $next by hand." >&2
         if [[ -z "$module_kept" ]]; then
-            echo "Then close the Plane module: .github/board/wa-backlog close-milestone $version   (or in Plane)" >&2
+            echo "Then close the Plane module: .lunabee/board/lb-board close-milestone $version   (or in Plane)" >&2
         fi
     elif $tag_created || $draft_created; then
         echo "Clean up before retrying:" >&2
@@ -178,7 +178,7 @@ module_kept=""
 milestones=""
 if [[ -z "${PLANE_API_KEY:-}" ]]; then
     module_kept="PLANE_API_KEY not set"
-elif ! milestones="$("$root/.github/board/wa-backlog" milestones)"; then
+elif ! milestones="$("$root/.lunabee/board/lb-board" milestones)"; then
     module_kept="Plane could not be read"
 fi
 
@@ -271,7 +271,7 @@ bumped=true
 
 if [[ -z "$module_kept" ]]; then
     step "10/10 closing Plane module $version"
-    "$root/.github/board/wa-backlog" close-milestone "$version" > /dev/null
+    "$root/.lunabee/board/lb-board" close-milestone "$version" > /dev/null
     module_result="Plane module $version closed."
 else
     step "10/10 Plane module $version left open: $module_kept"
