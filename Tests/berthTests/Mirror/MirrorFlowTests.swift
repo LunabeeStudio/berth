@@ -25,11 +25,11 @@ struct MirrorFlowTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let launcher: FakeAndroidMirrorLauncher = .init()
 
-        try await makeFlow(scrcpyDirectory: directory, launcher: launcher).open(.android(serial: "emulator-5554", model: "Pixel_9"))
+        try await makeFlow(scrcpyDirectory: directory, launcher: launcher).open(.android(serial: "emulator-5554", name: "Pixel_9 - 1"))
 
         let launch: FakeAndroidMirrorLauncher.Launch = try #require(launcher.launches.first)
         #expect(launch.executable == directory.appending(path: "scrcpy").path)
-        #expect(launch.arguments.starts(with: ["-s", "emulator-5554", "--no-audio", "--window-title", "emulator-5554 Pixel_9"]))
+        #expect(launch.arguments.starts(with: ["-s", "emulator-5554", "--no-audio", "--window-title", "emulator-5554 Pixel_9 - 1"]))
         #expect(!launch.arguments.contains("--no-control"))
         #expect(launch.environment["ADB"] == "/sdk/platform-tools/adb")
         #expect(launch.log.path == "/tmp/berth-logs/mirror-emulator-5554.log")
@@ -40,7 +40,7 @@ struct MirrorFlowTests {
         let launcher: FakeAndroidMirrorLauncher = .init()
 
         await #expect(throws: MirrorError.scrcpyNotFound) {
-            try await makeFlow(scrcpyDirectory: nil, launcher: launcher).open(.android(serial: "emulator-5554", model: "Pixel_9"))
+            try await makeFlow(scrcpyDirectory: nil, launcher: launcher).open(.android(serial: "emulator-5554", name: "Pixel_9 - 1"))
         }
         #expect(launcher.launches.isEmpty)
     }
@@ -53,7 +53,7 @@ struct MirrorFlowTests {
         launcher.failure = Boom()
 
         await #expect(throws: MirrorError.failed(serial: "emulator-5554", reason: "boom")) {
-            try await makeFlow(scrcpyDirectory: directory, launcher: launcher).open(.android(serial: "emulator-5554", model: "Pixel_9"))
+            try await makeFlow(scrcpyDirectory: directory, launcher: launcher).open(.android(serial: "emulator-5554", name: "Pixel_9 - 1"))
         }
     }
 

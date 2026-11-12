@@ -58,8 +58,10 @@ public struct Slot: Codable, Sendable, Identifiable {
     public var lease: Lease?
     public var generation: Int
     public var windowed: Bool
+    public var instance: Int?
 
     public var id: String { serial }
+    public var displayName: String { instance.map { "\(model) - \($0)" } ?? model }
     public var isManuallyLeased: Bool { state == .leased && lease?.manual == true }
 
     public init(
@@ -70,7 +72,8 @@ public struct Slot: Codable, Sendable, Identifiable {
         stateSince: Date,
         lease: Lease? = nil,
         generation: Int,
-        windowed: Bool = false
+        windowed: Bool = false,
+        instance: Int? = nil
     ) {
         self.serial = serial
         self.model = model
@@ -80,6 +83,7 @@ public struct Slot: Codable, Sendable, Identifiable {
         self.lease = lease
         self.generation = generation
         self.windowed = windowed
+        self.instance = instance
     }
 
     public init(from decoder: any Decoder) throws {
@@ -92,6 +96,7 @@ public struct Slot: Codable, Sendable, Identifiable {
         lease = try container.decodeIfPresent(Lease.self, forKey: .lease)
         generation = try container.decode(Int.self, forKey: .generation)
         windowed = try container.decodeIfPresent(Bool.self, forKey: .windowed) ?? false
+        instance = try container.decodeIfPresent(Int.self, forKey: .instance)
     }
 }
 
@@ -188,9 +193,10 @@ extension Slot {
         stateSince: Date = .init(timeIntervalSince1970: 0),
         lease: Lease? = nil,
         generation: Int = 1,
-        windowed: Bool = false
+        windowed: Bool = false,
+        instance: Int? = 1
     ) -> Slot {
-        .init(serial: serial, model: model, pid: pid, state: state, stateSince: stateSince, lease: lease, generation: generation, windowed: windowed)
+        .init(serial: serial, model: model, pid: pid, state: state, stateSince: stateSince, lease: lease, generation: generation, windowed: windowed, instance: instance)
     }
 }
 

@@ -1,4 +1,4 @@
 enum MirrorTarget: Equatable {
-    case android(serial: String, model: String)
+    case android(serial: String, name: String)
     case ios(udid: String)
 }

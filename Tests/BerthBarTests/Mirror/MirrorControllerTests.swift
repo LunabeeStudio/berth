@@ -22,11 +22,11 @@ struct MirrorControllerTests {
     func `a free slot opens a controlled mirror`() throws {
         let controller: MirrorController = makeController()
 
-        controller.open(.mock(serial: "emulator-5554", model: "Pixel_9", state: .free), platform: .android)
+        controller.open(.mock(serial: "emulator-5554", model: "Pixel_9", state: .free, instance: 1), platform: .android)
 
         let launch: FakeMirrorLauncher.Launch = try #require(launcher.launches.first)
         #expect(launch.executable == Self.scrcpyDirectory + "/scrcpy")
-        #expect(launch.arguments == ScrcpyArguments.make(serial: "emulator-5554", model: "Pixel_9", mode: .control))
+        #expect(launch.arguments == ScrcpyArguments.make(serial: "emulator-5554", name: "Pixel_9 - 1", mode: .control))
         #expect(launch.log == logs.appending(path: "mirror-emulator-5554.log"))
     }
 
@@ -66,14 +66,14 @@ struct MirrorControllerTests {
     @Test
     func `a controlled mirror restarts view only when its slot is leased`() throws {
         let controller: MirrorController = makeController()
-        controller.open(.mock(serial: "emulator-5554", model: "Pixel_9", state: .free), platform: .android)
+        controller.open(.mock(serial: "emulator-5554", model: "Pixel_9", state: .free, instance: 1), platform: .android)
 
         controller.apply(.mock(slots: [.mock(serial: "emulator-5554", model: "Pixel_9", state: .leased)]))
 
         #expect(launcher.launches.count == 2)
         #expect(launcher.launches[0].process.terminated)
         #expect(launcher.launches[1].arguments.contains("--no-control"))
-        #expect(launcher.launches[1].arguments.contains("emulator-5554 Pixel_9 (view only)"))
+        #expect(launcher.launches[1].arguments.contains("emulator-5554 Pixel_9 - 1 (view only)"))
     }
 
     @Test

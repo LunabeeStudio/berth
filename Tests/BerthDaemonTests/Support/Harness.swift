@@ -11,13 +11,14 @@ struct Harness {
     let adbPid: AdbPidBox = .init()
     let broker: Broker
 
-    init(maxRunning: Int = 2, pool: [PoolEntry] = [PoolEntry(name: "Pixel", maxInstances: 2)], idle: Int = 900) {
+    init(maxRunning: Int = 2, pool: [PoolEntry] = [PoolEntry(name: "Pixel", maxInstances: 2)], idle: Int = 900, store: StateStore? = nil) {
         let clock = clock
         let owners = owners
         let adbPid: AdbPidBox = adbPid
         broker = Broker(
             config: Config(maxRunning: maxRunning, idleShutdownSeconds: idle, defaultTTLSeconds: 3600, pool: pool),
             backend: backend,
+            store: store,
             now: { clock.now },
             ownerAlive: { owners.isAlive($0) },
             adbServerPid: { adbPid.value }

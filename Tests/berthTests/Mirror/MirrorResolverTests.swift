@@ -7,7 +7,7 @@ import Testing
 @Suite
 struct MirrorResolverTests {
     private static func snapshot(serial: String, model: String, state: SlotState) -> StateSnapshot {
-        let slot: Slot = .init(serial: serial, model: model, pid: nil, state: state, stateSince: .init(timeIntervalSince1970: 0), generation: 0)
+        let slot: Slot = .init(serial: serial, model: model, pid: nil, state: state, stateSince: .init(timeIntervalSince1970: 0), generation: 0, instance: 1)
         let pool: [PoolEntry] = [
             .init(name: "Pixel_9", platform: .android, maxInstances: 1),
             .init(name: "iPhone 17", platform: .ios, maxInstances: 1),
@@ -19,7 +19,7 @@ struct MirrorResolverTests {
     func `leased android emulator resolves to an android target`() throws {
         let snapshot: StateSnapshot = Self.snapshot(serial: "emulator-5554", model: "Pixel_9", state: .leased)
 
-        #expect(try MirrorResolver.resolve(serial: "emulator-5554", in: snapshot) == .android(serial: "emulator-5554", model: "Pixel_9"))
+        #expect(try MirrorResolver.resolve(serial: "emulator-5554", in: snapshot) == .android(serial: "emulator-5554", name: "Pixel_9 - 1"))
     }
 
     @Test

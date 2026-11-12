@@ -7,7 +7,7 @@ enum MirrorResolver {
         }
         guard slot.state == .leased else { throw MirrorError.notLeased(serial: serial, state: slot.state) }
         switch snapshot.pool.platform(of: slot.model) {
-        case .android: return .android(serial: slot.serial, model: slot.model)
+        case .android: return .android(serial: slot.serial, name: slot.displayName)
         case .ios: return .ios(udid: slot.serial)
         }
     }

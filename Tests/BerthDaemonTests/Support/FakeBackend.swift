@@ -27,6 +27,7 @@ final class FakeBackend: DeviceBackend {
         var launches: [Launch] = []
     }
 
+    func setLive(_ serials: Set<String>) { state.withLock { $0.live = serials } }
     func failBoot(_ model: String) { state.withLock { _ = $0.failingModels.insert(model) } }
     func markUnavailable(_ model: String, reason: String) { state.withLock { $0.unavailable[model] = reason } }
     func unavailableReason(model: String) -> String? { state.withLock { $0.unavailable[model] } }

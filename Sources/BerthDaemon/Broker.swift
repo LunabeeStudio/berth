@@ -202,7 +202,10 @@ public actor Broker {
         let saved = store?.load() ?? []
         let live = await backend.liveSerials() ?? []
         externalSerials = live
-        for var slot in saved where live.contains(slot.serial) {
+        let adopted: [Slot] = saved.filter { live.contains($0.serial) }
+        let ordered: [Slot] = adopted.filter { $0.instance != nil } + adopted.filter { $0.instance == nil }.sorted { $0.serial.numericallyPrecedes($1.serial) }
+        for var slot in ordered {
+            if slot.instance == nil { slot.instance = lowestFreeInstance(of: slot.model) }
             slot.generation = nextGeneration()
             slot.lease?.acknowledged = true
             slots[slot.serial] = slot
@@ -453,7 +456,7 @@ public actor Broker {
         let taken = Set(slots.keys).union(externalSerials)
         guard let serial = backend.nextSerial(model: model, taken: taken) else { return nil }
         let generation = nextGeneration()
-        slots[serial] = Slot(serial: serial, model: model, pid: nil, state: .booting, stateSince: now(), generation: generation, windowed: windowed)
+        slots[serial] = Slot(serial: serial, model: model, pid: nil, state: .booting, stateSince: now(), generation: generation, windowed: windowed, instance: lowestFreeInstance(of: model))
         Log.info("\(serial): booting \(model)\(windowed ? " (windowed)" : "")")
         let backend = backend
         Task {
@@ -467,6 +470,11 @@ public actor Broker {
             }
         }
         return serial
+    }
+
+    private func lowestFreeInstance(of model: String) -> Int {
+        let held: Set<Int> = Set(slots.values.filter { $0.model == model }.compactMap(\.instance))
+        return (1...).first { !held.contains($0) } ?? 1
     }
 
     private func recordPID(_ pid: Int32?, serial: String, generation: Int) {
@@ -550,7 +558,7 @@ public actor Broker {
         guard current == nil || (current?.generation == generation && current?.state == .stopping) else { return }
         Log.info("\(serial): stopping (device came up after its slot was stopped)")
         let generation = nextGeneration()
-        slots[serial] = Slot(serial: serial, model: model, pid: pid, state: .stopping, stateSince: now(), generation: generation)
+        slots[serial] = Slot(serial: serial, model: model, pid: pid, state: .stopping, stateSince: now(), generation: generation, instance: current?.instance ?? lowestFreeInstance(of: model))
         startShutdown(serial: serial, generation: generation, pid: pid)
         changed()
     }

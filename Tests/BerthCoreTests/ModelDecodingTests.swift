@@ -15,6 +15,16 @@ struct ModelDecodingTests {
     }
 
     @Test
+    func `a slot saved before instance existed decodes as unnumbered`() throws {
+        let json: String = #"{"serial":"emulator-5554","model":"Pixel","state":"free","stateSince":0,"generation":1}"#
+
+        let slot: Slot = try Wire.decoder().decode(Slot.self, from: Data(json.utf8))
+
+        #expect(slot.instance == nil)
+        #expect(slot.displayName == "Pixel")
+    }
+
+    @Test
     func `windowed survives an encode decode round trip`() throws {
         let slot: Slot = .mock(windowed: true)
 
