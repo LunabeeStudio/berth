@@ -7,6 +7,7 @@ struct StatusPanel: View {
     @Bindable var launchAtLogin: LaunchAtLogin
     @Bindable var autoUpdate: AutoUpdateSetting
     let launcher: EmulatorLauncher
+    let avdList: AVDList
     let mirror: MirrorController
 
     var body: some View {
@@ -65,19 +66,12 @@ struct StatusPanel: View {
         ForEach(Array(snapshot.queue.enumerated()), id: \.element.id) { index, waiter in
             QueueRow(position: index + 1, waiter: waiter, now: model.now)
         }
-        launchMenu(snapshot.pool.filter { $0.platform == .android })
+        menus(snapshot.pool)
     }
 
     @ViewBuilder
-    private func launchMenu(_ entries: [PoolEntry]) -> some View {
-        if !entries.isEmpty {
-            Menu("Launch emulator") {
-                ForEach(entries, id: \.name) { entry in
-                    Button(entry.name) { launcher.launch(model: entry.name) }
-                }
-            }
-            .fixedSize()
-        }
+    private func menus(_ pool: [PoolEntry]) -> some View {
+        AVDMenus(items: AVDMenuItems(avds: avdList.avds, pool: pool), launcher: launcher)
         if let error = launcher.error {
             Text(error).font(.caption).foregroundStyle(.secondary)
         }

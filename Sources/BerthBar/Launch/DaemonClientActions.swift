@@ -5,6 +5,10 @@ struct DaemonClientActions: DaemonActions {
         _ = try await DaemonClient.claim(request, autoSpawn: false)
     }
 
+    func prepare(_ request: PrepareRequest) async throws {
+        _ = try await DaemonClient.prepare(request, autoSpawn: false)
+    }
+
     func release(serial: String) async throws {
         _ = try await DaemonClient.call(.release(target: serial), autoSpawn: false)
     }

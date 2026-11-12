@@ -22,8 +22,19 @@ public struct ClaimRequest: Codable, Sendable {
     public var isWindowed: Bool { windowed ?? false }
 }
 
+public struct PrepareRequest: Codable, Sendable, Hashable {
+    public var avd: String
+    public var settle: Int
+
+    public init(avd: String, settle: Int) {
+        self.avd = avd
+        self.settle = settle
+    }
+}
+
 public enum Request: Codable, Sendable {
     case claim(ClaimRequest)
+    case prepare(PrepareRequest)
     case ack(lease: String)
     case release(target: String)
     case renew(target: String, ttl: Int?)
@@ -40,6 +51,7 @@ public enum Event: Codable, Sendable {
     case ok(String)
     case failure(String)
     case state(StateSnapshot)
+    case progress(String)
 }
 
 public enum Wire {

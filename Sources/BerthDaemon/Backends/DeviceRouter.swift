@@ -1,14 +1,20 @@
 import BerthCore
+import Synchronization
 
-public struct DeviceRouter: DeviceBackend {
+public final class DeviceRouter: DeviceBackend {
     private let android: any DeviceBackend
     private let ios: any DeviceBackend
-    private let config: Config
+    private let state: Mutex<Config>
+    private var config: Config { state.withLock { $0 } }
 
     public init(config: Config, android: any DeviceBackend, ios: any DeviceBackend) {
-        self.config = config
+        state = .init(config)
         self.android = android
         self.ios = ios
+    }
+
+    public func poolChanged(_ pool: [PoolEntry]) {
+        state.withLock { $0.pool = pool }
     }
 
     private func backend(forModel model: String) -> any DeviceBackend {

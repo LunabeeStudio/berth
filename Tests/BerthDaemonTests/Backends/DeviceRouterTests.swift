@@ -58,6 +58,17 @@ struct DeviceRouterTests {
     }
 
     @Test
+    func `a pool that gains an android entry lists android live serials`() async throws {
+        let android: FakeBackend = .init()
+        _ = try await android.launch(serial: "emulator-5554", model: "Pixel", windowed: false)
+        let router: DeviceRouter = .init(config: .init(pool: [PoolEntry(name: "iPhone 17", platform: .ios, maxInstances: 1)]), android: android, ios: FakeBackend())
+
+        router.poolChanged([PoolEntry(name: "iPhone 17", platform: .ios, maxInstances: 1), PoolEntry(name: "Pixel", maxInstances: 2)])
+
+        #expect(await router.liveSerials() == ["emulator-5554"])
+    }
+
+    @Test
     func `an ios only pool still lists physical devices without android live serials`() async throws {
         let android: FakeBackend = .init()
         android.attach([.mock()])

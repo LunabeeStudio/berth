@@ -9,6 +9,7 @@ extension SlotState {
         case .leased: .cyan
         case .resetting: .purple
         case .stopping: .gray
+        case .preparing: .orange
         }
     }
 }

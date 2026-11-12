@@ -8,20 +8,22 @@ final class StatusItemController: NSObject {
     private let launchAtLogin: LaunchAtLogin
     private let autoUpdate: AutoUpdateSetting
     private let launcher: EmulatorLauncher
+    private let avdList: AVDList
     private let mirror: MirrorController
     private let item: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover: NSPopover = .init()
     private var shownSymbol: String?
     private var shownTitle: String?
 
-    init(model: StatusModel, launchAtLogin: LaunchAtLogin, autoUpdate: AutoUpdateSetting, launcher: EmulatorLauncher, mirror: MirrorController) {
+    init(model: StatusModel, launchAtLogin: LaunchAtLogin, autoUpdate: AutoUpdateSetting, launcher: EmulatorLauncher, avdList: AVDList, mirror: MirrorController) {
         self.model = model
         self.launchAtLogin = launchAtLogin
         self.autoUpdate = autoUpdate
         self.launcher = launcher
+        self.avdList = avdList
         self.mirror = mirror
         super.init()
-        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, autoUpdate: autoUpdate, launcher: launcher, mirror: mirror))
+        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, autoUpdate: autoUpdate, launcher: launcher, avdList: avdList, mirror: mirror))
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
         popover.behavior = .transient
@@ -38,6 +40,7 @@ final class StatusItemController: NSObject {
         } else {
             launchAtLogin.refresh()
             autoUpdate.refresh()
+            Task { await avdList.refresh() }
             NSApp.activate()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }

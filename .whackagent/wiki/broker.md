@@ -3,7 +3,7 @@
 `actor Broker` (BerthDaemon/Broker.swift) = all scheduling state. Injected `now` + `ownerAlive` closures → deterministic tests (`Tests/BerthDaemonTests`, FakeBackend).
 
 ## Slot lifecycle
-`booting → free → leased → resetting → free … → stopping → removed`
+`booting → free → leased → resetting → free … → stopping → removed` · prepare: `preparing → removed`
 - Slot keyed by serial; `generation` int guards async completions (stale task for removed/recreated slot ignored).
 - Async work (boot, reset, shutdown) runs in unstructured Task, re-enters actor via `bootFinished` / `resetFinished` / `removeSlot`.
 - **Instance number (BERTH-10)**: `Slot.instance` = lowest positive int no other slot of same model holds (`lowestFreeInstance`), set in `boot` / `discardOrphan` (reuses replaced stopping slot's number). Kept for slot life (reset, lease, release); stopping slot holds it until `removeSlot` → gap reused by next boot. `displayName` = `<model> - <n>`, shown by `berth status`/`top`, berth-bar row, scrcpy title. Display + identity only: pool matching, claims, `bootFailures` still on `model`. Persisted, optional (old `state.json` → nil → `restore` numbers it: saved numbers first, then nil slots by serial; old daemon snapshot → name falls back to `model`).
@@ -23,6 +23,17 @@ Model must be pool entry of request platform, else "not in the pool". Pool has n
 - Owner = `Owner{pid, startTime, name}`; start time compare defeats PID reuse.
 - Reclaimed (→ reset) when: owner dead, TTL expired, client disconnected before `ack`.
 - `release`/`renew`/`stop` accept serial or lease id.
+Pool is live: `config` is `var`; prepare appends entry, `backend.poolChanged(pool)` updates `DeviceRouter` (config in `Mutex`). Other settings fixed at start.
+
+## Prepare (BERTH-16)
+`Request.prepare(PrepareRequest{avd, settle})`, connection = request lifetime (like claim). Daemon-side because only it can keep claims off the AVD.
+- Refusals, in order: iOS entry · `unknown AVD '<avd>'` (`AVDCatalog.list`) · AVD running outside berth (live serial not a slot, `avdName` match) → `already running as <serial>` · instance not free → `<avd> is in use: <serial> leased by <owner>` / `<serial> <state>`.
+- Free instances of AVD → `beginStop`; prepare awaits their `shutdownTasks`.
+- Slot `.preparing` (serial = `nextSerial` over slots ∪ live): no `maxRunning` check (user decision), but counts in `slots.count` → claim boots still respect limit. `hasInstanceRoom` false for model with preparing slot → its claims queue, granted after.
+- Success → slot removed, not in pool → `Config.appendPoolEntry` (`maxInstances: 2`, raw JSON edit, `editRawJSON` shared with `setAutoUpdate`) + live pool → `.ok("saved snapshot …")`. Failure → `.failure`, pool unchanged.
+- Disconnect, `stop`, `stopAll` → cancel task (emulator shut down by preparer) → `.failure("prepare of <avd> cancelled")` (lost on closed sink).
+- `restore()`: persisted `.preparing` → `.booting` → stopped, never adopted.
+- `SlotState` unknown raw value decodes `.booting` (future states safe for clients ≥ this one).
 
 ## Windowed slots (#19)
 Two notions. `Slot.windowed` = boot mode (window, kept for slot life). `Lease.manual` = lease granted to windowed claim from `berth-bar` (user's own). Both persisted, old `state.json` → false. `Slot.isManuallyLeased` = leased + manual.
