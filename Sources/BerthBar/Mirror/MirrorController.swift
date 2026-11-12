@@ -54,7 +54,7 @@ final class MirrorController {
         for slot in snapshot.slots where slot.state == .leased {
             guard let session = sessions[slot.serial], session.mode == .control else { continue }
             stop(serial: slot.serial)
-            start(serial: slot.serial, model: session.model, mode: .viewOnly)
+            start(serial: slot.serial, name: session.name, mode: .viewOnly)
         }
     }
 
@@ -78,7 +78,7 @@ final class MirrorController {
             activate(session.process.pid)
             return
         }
-        start(serial: slot.serial, model: slot.model, mode: slot.state == .free ? .control : .viewOnly)
+        start(serial: slot.serial, name: slot.displayName, mode: slot.state == .free ? .control : .viewOnly)
     }
 
     private func openInDeviceHub(udid: String) {
@@ -99,7 +99,7 @@ final class MirrorController {
         }
     }
 
-    private func start(serial: String, model: String, mode: MirrorMode) {
+    private func start(serial: String, name: String, mode: MirrorMode) {
         guard let executable = locator.locate() else {
             caption = ScrcpyMirror.notFoundMessage
             return
@@ -109,12 +109,12 @@ final class MirrorController {
         do {
             let process: any MirrorProcess = try launcher.launch(
                 executable: executable,
-                arguments: ScrcpyArguments.make(serial: serial, model: model, mode: mode),
+                arguments: ScrcpyArguments.make(serial: serial, name: name, mode: mode),
                 log: log
             ) { [weak self] code in
                 self?.didExit(serial: serial, id: id, code: code, log: log)
             }
-            sessions[serial] = Session(id: id, model: model, mode: mode, process: process)
+            sessions[serial] = Session(id: id, name: name, mode: mode, process: process)
         } catch {
             caption = Self.launchFailedCaption(serial: serial, error: error)
         }
@@ -136,7 +136,7 @@ final class MirrorController {
 private extension MirrorController {
     struct Session {
         let id: UUID
-        let model: String
+        let name: String
         let mode: MirrorMode
         let process: any MirrorProcess
     }

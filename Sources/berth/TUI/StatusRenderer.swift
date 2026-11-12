@@ -7,7 +7,7 @@ struct StatusRenderer {
     let colors: Bool
 
     private static let slotColumns: [(String, Int)] = [
-        ("SERIAL", 15), ("DEVICE", 16), ("STATE", 10), ("OWNER", 18), ("LABEL", 20), ("HELD", 8), ("TTL", 7),
+        ("SERIAL", 15), ("DEVICE", 18), ("STATE", 10), ("OWNER", 18), ("LABEL", 20), ("HELD", 8), ("TTL", 7),
     ]
     private static let queueColumns: [(String, Int)] = [("#", 3), ("OWNER", 18), ("LABEL", 20), ("DEVICE", 16), ("WAITING", 8)]
 
@@ -49,7 +49,7 @@ struct StatusRenderer {
         let lease = slot.lease
         let cells: [String] = [
             slot.serial,
-            slot.model,
+            Self.deviceCell(slot, width: Self.slotColumns[1].1),
             slot.state.rawValue,
             lease?.owner.display ?? "—",
             lease?.label ?? "—",
@@ -79,6 +79,13 @@ struct StatusRenderer {
         case .resetting: "35"
         case .stopping: "90"
         }
+    }
+
+    static func deviceCell(_ slot: Slot, width: Int) -> String {
+        let name: String = slot.displayName
+        guard name.count > width, let instance = slot.instance else { return name }
+        let suffix: String = " - \(instance)"
+        return String(slot.model.prefix(max(width - suffix.count - 1, 0))) + "…" + suffix
     }
 
     static func pad(_ text: String, _ width: Int) -> String {

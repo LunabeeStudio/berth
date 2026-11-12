@@ -124,6 +124,12 @@ struct StatusPanelRenderTests {
         Self.expectPanelSized(try Self.render(.live(.mock(generatedAt: Self.now)), named: "live-empty"))
     }
 
+    @Test
+    func `long model names keep their instance number in the panel`() throws {
+        let slots: [Slot] = [.mock(serial: "emulator-5554", model: "Pixel_9_Pro_XL", state: .free, instance: 2), .mock(serial: "UDID-1", model: "iPhone 17 Pro", state: .free, instance: 1)]
+        Self.expectPanelSized(try Self.render(.live(.mock(slots: slots, generatedAt: Self.now)), named: "live-long-names"))
+    }
+
     @Test(arguments: [(NSAppearance.Name.aqua, "live-busy"), (.darkAqua, "live-busy-dark")])
     func `panel is opaque in every appearance`(appearance: NSAppearance.Name, name: String) throws {
         let image: NSBitmapImageRep = try Self.render(Self.busy(), named: name, appearance: appearance)

@@ -25,18 +25,18 @@ struct MirrorFlow {
 
     func open(_ target: MirrorTarget) async throws {
         switch target {
-        case let .android(serial, model): try openAndroid(serial: serial, model: model)
+        case let .android(serial, name): try openAndroid(serial: serial, name: name)
         case let .ios(udid): try await openSimulator(udid: udid)
         }
     }
 
-    private func openAndroid(serial: String, model: String) throws {
+    private func openAndroid(serial: String, name: String) throws {
         guard let scrcpy = locator.locate() else { throw MirrorError.scrcpyNotFound }
         let environment: [String: String] = ProcessInfo.processInfo.environment.merging(["ADB": adb]) { _, new in new }
         do {
             try launcher.launch(
                 executable: scrcpy,
-                arguments: ScrcpyArguments.make(serial: serial, model: model, mode: .control),
+                arguments: ScrcpyArguments.make(serial: serial, name: name, mode: .control),
                 log: ScrcpyMirror.logURL(serial: serial, in: logs),
                 environment: environment
             )

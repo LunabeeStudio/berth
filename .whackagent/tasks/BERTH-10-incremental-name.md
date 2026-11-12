@@ -1,6 +1,6 @@
 ---
 issue: BERTH-10
-phase:
+phase: validated
 type: feature
 wiki: [broker, cli]
 note:
@@ -31,3 +31,37 @@ Grilled unattended by `/wa-autopilot` on 2026-11-12. Every decision below is an 
 - The scrcpy mirror window title contains the numbered name.
 - A `state.json` written before this change still loads, and its slots get numbers.
 - `berth claim` still prints only the serial; `swift build` and `swift test` pass.
+
+## Implementation
+
+- `Slot` gains a persisted optional `instance` number and a computed `displayName` (`<model> - <n>`, plain `model` when the number is nil, e.g. a snapshot from an older daemon). The field is read with `decodeIfPresent` (`Sources/BerthCore/Model.swift`).
+- `Broker.lowestFreeInstance(of:)` gives the lowest positive number no other slot of the same model holds. It is used in `boot()`, `discardOrphan()` (which reuses the number of the stopping slot it replaces) and `restore()` (saved numbers kept first, then slots with a nil number in serial order). A stopping slot keeps its number until `removeSlot()` (`Sources/BerthDaemon/Broker.swift`).
+- Display: `berth status` / TUI DEVICE column shows the name (column widened 16 → 18; `StatusRenderer.deviceCell` shortens the model and always keeps ` - n`); the berth-bar panel row shows it with middle truncation so the number stays visible; the scrcpy window title carries it through the mirror chain, whose `model` parameter is renamed `name` (`ScrcpyArguments`, `MirrorTarget`, `MirrorFlow`, `MirrorResolver`, `MirrorController`). Pool and platform matching still use `model`.
+- Tests: new `BrokerInstanceTests` (5 cases), old-JSON case in `ModelDecodingTests`, title and column cases in the mirror and TUI tests; `Harness` takes an optional store, `FakeBackend.setLive(_:)`.
+- Build: `swift build` green, full `swift test` green, 0 new warnings.
+
+## Review
+
+### validation (autopilot) — 2026-11-12
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict after 2 rounds: clean.
+
+Round 1, 5 findings, all fixed by autofix:
+- 🟠 [correctness] `EmulatorRow`: fixed 90 pt column with tail truncation cut the ` - n` suffix of long names (`Pixel_10_Pro - 2`, `iPhone 17 Pro - 1`). Fixed: `.truncationMode(.middle)` + render fixture with long names.
+- 🟡 [correctness] `StatusRenderer`: names of 19+ characters lost the number in the DEVICE column. Fixed: `deviceCell` truncates the model part, keeps ` - n`, test added.
+- 🟡 [elegance] `instance == 0` sentinel. Fixed: `instance: Int?`, `displayName` falls back to `model`.
+- 🟡 [style] missing type annotations in `Broker` (3 declarations). Fixed.
+- 🟡 [style] private helper before `@Test` methods in `BrokerInstanceTests`. Fixed.
+
+Round 2: clean, no new finding. Withdrawn: 0. Disputed: 0.
+
+## Verification
+
+Runtime check by the implementer, own daemon (`BERTH_HOME=/tmp/b10`, pool `Pixel_9` ×2):
+- ✅ Two background `berth claim --avd Pixel_9` → `emulator-5556  Pixel_9 - 1  leased` and `emulator-5558  Pixel_9 - 2  leased` in `berth status`.
+- ✅ `berth claim` stdout is only the serial (`emulator-5556`, `emulator-5558`).
+- ✅ `berth release emulator-5558` → resetting → free, still `Pixel_9 - 2`.
+- ✅ After `berth stop-all`, the next claim gets `Pixel_9 - 1` again.
+- Gap reuse while another slot of the model runs: unit test only (`the number of a stopped slot is reused by the next boot`) — no CLI stops a single slot.
+- Panel row and scrcpy title: render tests (`live-busy.png`, `live-long-names.png`) and unit tests, not on screen.
+- ✅ After autofix: one claim → `Pixel_9 - 1` in `berth status`, claim stdout serial only; build + full tests green.

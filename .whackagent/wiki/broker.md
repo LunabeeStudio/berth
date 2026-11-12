@@ -6,6 +6,7 @@
 `booting → free → leased → resetting → free … → stopping → removed`
 - Slot keyed by serial; `generation` int guards async completions (stale task for removed/recreated slot ignored).
 - Async work (boot, reset, shutdown) runs in unstructured Task, re-enters actor via `bootFinished` / `resetFinished` / `removeSlot`.
+- **Instance number (BERTH-10)**: `Slot.instance` = lowest positive int no other slot of same model holds (`lowestFreeInstance`), set in `boot` / `discardOrphan` (reuses replaced stopping slot's number). Kept for slot life (reset, lease, release); stopping slot holds it until `removeSlot` → gap reused by next boot. `displayName` = `<model> - <n>`, shown by `berth status`/`top`, berth-bar row, scrcpy title. Display + identity only: pool matching, claims, `bootFailures` still on `model`. Persisted, optional (old `state.json` → nil → `restore` numbers it: saved numbers first, then nil slots by serial; old daemon snapshot → name falls back to `model`).
 
 ## Scheduling (`schedule()`, after every mutation)
 1. `grantFreeSlots` — FIFO; each waiter takes oldest free matching slot (`model` nil = any model of request platform; `ClaimRequest.resolvedPlatform`, nil = android for old clients).

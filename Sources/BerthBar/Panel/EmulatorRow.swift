@@ -11,7 +11,7 @@ struct EmulatorRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(slot.serial).monospaced().frame(width: 105, alignment: .leading)
-            Text(slot.model).frame(width: 90, alignment: .leading)
+            Text(slot.displayName).truncationMode(.middle).frame(width: 90, alignment: .leading)
             HStack(spacing: 5) {
                 Circle().fill(slot.state.color).frame(width: 8, height: 8)
                 Text(slot.state.rawValue)

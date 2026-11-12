@@ -29,6 +29,26 @@ struct StatusRendererTests {
         #expect(!line.hasSuffix("—      "))
     }
 
+    @Test
+    func `device column shows the numbered name`() throws {
+        let slot: Slot = .mock(model: "Pixel_10_Pro", instance: 2)
+        let renderer: StatusRenderer = .init(snapshot: .mock(slots: [slot], generatedAt: Self.now), now: Self.now, colors: false)
+
+        let line: String = try #require(renderer.lines(selected: nil).first { $0.hasPrefix("  emulator-5554") })
+
+        #expect(line.contains("Pixel_10_Pro - 2 "))
+    }
+
+    @Test
+    func `a long name is cut in the model part and keeps its number`() throws {
+        let slot: Slot = .mock(model: "Medium_Phone_API_36", instance: 2)
+        let renderer: StatusRenderer = .init(snapshot: .mock(slots: [slot], generatedAt: Self.now), now: Self.now, colors: false)
+
+        let line: String = try #require(renderer.lines(selected: nil).first { $0.hasPrefix("  emulator-5554") })
+
+        #expect(line.contains("Medium_Phone_… - 2 "))
+    }
+
     private func headerLines(restartedAgo: TimeInterval?) -> [String] {
         let snapshot: StateSnapshot = .mock(adbRestartedAt: restartedAgo.map { Self.now.addingTimeInterval(-$0) })
         return StatusRenderer(snapshot: snapshot, now: Self.now, colors: false).lines(selected: nil)
