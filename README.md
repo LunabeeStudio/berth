@@ -36,7 +36,7 @@ mkdir -p ~/.local/bin && curl -fsSL https://github.com/LunabeeStudio/berth/relea
 
 `~/.local/bin` must be on your PATH. The archive holds `berth` and `berth-bar`.
 
-Optional: `berth daemon install` starts the daemon at login via launchd (otherwise any command starts it).
+Optional: `berth daemon install` starts the daemon at login via launchd (otherwise any command starts it). `berth bar install` does the same for `berth-bar`.
 
 ### From source
 
@@ -60,6 +60,7 @@ cp .build/release/berth .build/release/berth-bar ~/.local/bin/
 | `berth stop-all` | stop every emulator berth started |
 | `berth update [--check]` | install the latest GitHub release over `berth` (and the `berth-bar` beside it); `--check` only reports the running and latest versions |
 | `berth daemon stop` | stop the daemon (emulators keep running and are adopted on restart); needed after editing the config (except `autoUpdate`) |
+| `berth bar install` / `berth bar uninstall` | start `berth-bar` now and at every login via launchd (same agent as the panel's "Launch at login" checkbox; replaces a running `berth-bar` from the same path), or stop it and remove the agent |
 
 Paste [`docs/AGENTS.md`](docs/AGENTS.md) into your agents' `CLAUDE.md` / `AGENTS.md` (Claude Code users: see below).
 
@@ -90,6 +91,8 @@ berth-bar &                                 # no Dock icon; Quit is in the panel
 Installed with `berth` (see Install). From a source checkout: `swift build -c release && .build/release/berth-bar &`.
 
 The panel has a "Launch at login" checkbox. It writes `~/Library/LaunchAgents/com.berth.bar.plist` (label `com.berth.bar`), which keeps the path of the binary: toggle it off and on after moving `berth-bar`.
+
+`berth bar install` writes the same plist and also starts `berth-bar` now, replacing one already running from the same path (one from another path is left alone). `berth bar uninstall` stops it and removes the plist.
 
 Next to it, an "Auto update" checkbox writes `autoUpdate` in `config.json`. It is disabled (and shown checked) until the daemon has created that file, and while the file cannot be read.
 

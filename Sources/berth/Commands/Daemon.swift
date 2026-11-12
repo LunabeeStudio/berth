@@ -54,12 +54,8 @@ struct DaemonInstall: AsyncParsableCommand {
         ]
         try agent.write(plist)
         _ = try? await DaemonClient.call(.shutdown, autoSpawn: false)
-        _ = try? await Shell.run("/bin/launchctl", ["bootout", agent.domain, agent.plist.path])
-        let result = try await Shell.run("/bin/launchctl", ["bootstrap", agent.domain, agent.plist.path])
-        guard result.succeeded else {
-            printError("berth: launchctl bootstrap failed: \(result.stderr)")
-            throw ExitCode.failure
-        }
+        await agent.bootout()
+        try await agent.bootstrap()
         printError("berth: installed \(agent.plist.path)")
     }
 }
@@ -69,7 +65,7 @@ struct DaemonUninstall: AsyncParsableCommand {
 
     func run() async throws {
         let agent: LaunchAgent = .daemon
-        _ = try? await Shell.run("/bin/launchctl", ["bootout", agent.domain, agent.plist.path])
+        await agent.bootout()
         try? agent.remove()
         printError("berth: uninstalled")
     }

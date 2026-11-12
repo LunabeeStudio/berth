@@ -14,6 +14,7 @@ ArgumentParser `AsyncParsableCommand`s in `Sources/berth/`. Root `Berth` (Berth.
 | `guard` | Claude Code PreToolUse hook: stdin payload → exit 0 allow / 2 deny + stderr reason; no daemon; see [[claude-code]] |
 | `update [--check]` | install latest GitHub release over own binary + sibling `berth-bar`; no daemon; dev build exit 1; see [[update]] |
 | `daemon run/stop/install/uninstall` | install = launchd agent `com.berth.daemon` |
+| `bar install/uninstall` | install = launchd agent `com.berth.bar` (same plist as panel checkbox, `LaunchAgent.writeBar`) + bootstrap now; berth-bar = sibling of resolved `berth`, missing → exit 1 `berth-bar not found next to <path>`, nothing written; bootout loaded job, SIGTERM same-path berth-bar of user (`ExecutableReplacer`, other paths untouched), ≤5 s, survivor → exit 1 naming pid, no bootstrap; uninstall = bootout + remove, ok when absent; daemon untouched; see [[architecture]] |
 
 ## Exit codes
 0 ok · 1 error (`ClientError` printed `berth: …`) · 2 claim timeout.

@@ -46,4 +46,42 @@ struct LaunchAgentTests {
         let agent: LaunchAgent = makeAgent()
         #expect(agent.plist.lastPathComponent == "com.berth.test.plist")
     }
+
+    @Test
+    func `bar plist runs the executable at load in the GUI session without keep alive`() {
+        let plist: [String: Any] = makeAgent().barPlist(executable: "/opt/berth-bar", environment: [:])
+        #expect(plist["Label"] as? String == "com.berth.test")
+        #expect(plist["ProgramArguments"] as? [String] == ["/opt/berth-bar"])
+        #expect(plist["RunAtLoad"] as? Bool == true)
+        #expect(plist["LimitLoadToSessionType"] as? String == "Aqua")
+        #expect(plist["ProcessType"] as? String == "Interactive")
+        #expect(plist["KeepAlive"] == nil)
+    }
+
+    @Test
+    func `bar plist carries BERTH_HOME only when set`() {
+        let agent: LaunchAgent = makeAgent()
+        let with: [String: Any] = agent.barPlist(executable: "/x", environment: [Paths.homeVariable: "/tmp/bh"])
+        #expect((with["EnvironmentVariables"] as? [String: String]) == [Paths.homeVariable: "/tmp/bh"])
+        #expect(agent.barPlist(executable: "/x", environment: [:])["EnvironmentVariables"] == nil)
+        #expect(agent.barPlist(executable: "/x", environment: [Paths.homeVariable: ""])["EnvironmentVariables"] == nil)
+    }
+
+    @Test
+    func `bar agent uses the com.berth.bar label`() {
+        #expect(LaunchAgent.bar.label == "com.berth.bar")
+    }
+
+    @Test
+    func `writeBar writes the same bytes for the same inputs`() throws {
+        let first: LaunchAgent = makeAgent()
+        let second: LaunchAgent = makeAgent()
+        defer {
+            try? FileManager.default.removeItem(at: first.plist.deletingLastPathComponent())
+            try? FileManager.default.removeItem(at: second.plist.deletingLastPathComponent())
+        }
+        try first.writeBar(executable: "/x", environment: [Paths.homeVariable: "/tmp/bh"])
+        try second.writeBar(executable: "/x", environment: [Paths.homeVariable: "/tmp/bh"])
+        #expect(try Data(contentsOf: first.plist) == Data(contentsOf: second.plist))
+    }
 }
