@@ -17,6 +17,11 @@ public struct LaunchAgent: Sendable {
     }
 
     public static func currentExecutablePath() -> String {
+        let resolved: String = resolvedExecutablePath()
+        return HomebrewInstall(resolvedPath: resolved)?.stablePath ?? resolved
+    }
+
+    static func resolvedExecutablePath() -> String {
         URL(fileURLWithPath: Bundle.main.executablePath ?? CommandLine.arguments[0]).resolvingSymlinksInPath().path
     }
 

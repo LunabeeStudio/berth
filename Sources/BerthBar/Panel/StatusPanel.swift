@@ -27,6 +27,7 @@ struct StatusPanel: View {
                 Toggle("Auto update", isOn: $autoUpdate.isEnabled)
                     .toggleStyle(.checkbox)
                     .disabled(!autoUpdate.isAvailable)
+                    .help(autoUpdate.isManagedByHomebrew ? "Updated by Homebrew: brew upgrade berth" : "")
             }
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")

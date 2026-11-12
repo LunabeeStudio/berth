@@ -178,6 +178,15 @@ struct StatusPanelRenderTests {
         Self.expectPanelSized(try Self.render(.connecting, named: name, appearance: appearance, autoUpdate: setting))
     }
 
+    @Test(arguments: [(NSAppearance.Name.aqua, "auto-update-homebrew"), (.darkAqua, "auto-update-homebrew-dark")])
+    func `auto update managed by homebrew renders in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        let url: URL = FileManager.default.temporaryDirectory.appendingPathComponent("berth-render-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Config(autoUpdate: true).save(to: url)
+        let setting: AutoUpdateSetting = .init(configURL: url, isManagedByHomebrew: true)
+        Self.expectPanelSized(try Self.render(.connecting, named: name, appearance: appearance, autoUpdate: setting))
+    }
+
     @Test
     func `live with a mirror caption renders the panel`() throws {
         let mirror: MirrorController = .init(

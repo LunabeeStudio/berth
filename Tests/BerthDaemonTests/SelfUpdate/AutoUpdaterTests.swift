@@ -45,6 +45,27 @@ struct AutoUpdaterTests {
     }
 
     @Test
+    func `homebrew never checks, whatever the setting, and logs once`() async {
+        let source: StubUpdateSource = .newer()
+        let lines: LockedLines = .init()
+        let updater: AutoUpdater = .init(
+            source: source,
+            isAutoUpdateEnabled: { true },
+            currentVersion: "1.0.0",
+            isHomebrew: true,
+            delay: .milliseconds(1),
+            interval: .milliseconds(1),
+            log: { lines.add($0) }
+        )
+
+        await updater.run()
+        await updater.checkOnce()
+
+        #expect(source.checks == 0)
+        #expect(lines.all == ["auto update off: berth is managed by Homebrew (brew upgrade berth)"])
+    }
+
+    @Test
     func `run returns at once on a dev build whatever the setting`() async {
         let source: StubUpdateSource = .newer()
         let updater: AutoUpdater = .init(source: source, isAutoUpdateEnabled: { true }, currentVersion: "dev", delay: .milliseconds(1), interval: .milliseconds(1))

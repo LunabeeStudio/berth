@@ -29,12 +29,17 @@ cd "$root"
 plugin_file="claude-plugin/.claude-plugin/plugin.json"
 marketplace_file=".claude-plugin/marketplace.json"
 assets=(berth-macos-arm64.tar.gz berth-macos-arm64.tar.gz.sha256)
+tap_repo="LunabeeStudio/homebrew-tap"
+formula_path="Formula/berth.rb"
+render_formula="scripts/release/homebrew/render.sh"
 
 current_step=""
 tag=""
 tag_created=false
 draft_created=false
 published=false
+formula_done=false
+archive_sha=""
 bumped=false
 pr_branch=""
 pr_url=""
@@ -66,7 +71,13 @@ on_error() {
         echo "Release $tag is live and main holds $next. Close the Plane module by hand:" >&2
         echo "  .lunabee/board/lb-board close-milestone $version   (or in Plane)" >&2
     elif $published; then
-        echo "Release $tag is live, do not delete it: open the bump PR to $next by hand." >&2
+        echo "Release $tag is live, do not delete it." >&2
+        if ! $formula_done; then
+            echo "The Homebrew formula was not updated. Render it and commit it to $tap_repo as $formula_path by hand:" >&2
+            echo "  $render_formula $version ${archive_sha:-<sha256 from the release asset ${assets[1]}>}" >&2
+            echo "  gh api -X PUT repos/$tap_repo/contents/$formula_path -f message='berth $version' -f content=<base64 of the file> [-f sha=<current file sha>]" >&2
+        fi
+        echo "Open the bump PR to $next by hand." >&2
         if [[ -z "$module_kept" ]]; then
             echo "Then close the Plane module: .lunabee/board/lb-board close-milestone $version   (or in Plane)" >&2
         fi
@@ -144,6 +155,32 @@ check_version_free() {
     return 0
 }
 
+check_tap() {
+    local push
+    push="$(gh api "repos/$tap_repo" --jq .permissions.push 2>&1)" \
+        || fail "cannot reach $tap_repo: $push"
+    [[ "$push" == "true" ]] || fail "the gh user cannot push to $tap_repo: ask for write access"
+}
+
+formula_sha() {
+    local output
+    if output="$(gh api "repos/$tap_repo/contents/$formula_path" --jq .sha 2>&1)"; then
+        echo "$output"
+        return 0
+    fi
+    [[ "$output" == *"HTTP 404"* ]] || fail "could not read $formula_path in $tap_repo: $output"
+}
+
+publish_formula() {
+    local sha content
+    sha="$(formula_sha)"
+    content="$("$render_formula" "$version" "$archive_sha" | base64)"
+    local fields=(-f "message=berth $version" -f "content=$content")
+    [[ -z "$sha" ]] || fields+=(-f "sha=$sha")
+    gh api -X PUT "repos/$tap_repo/contents/$formula_path" "${fields[@]}" > /dev/null
+    formula_done=true
+}
+
 confirm() {
     local answer
     read -r -p "Proceed? [y/N] " answer || answer=""
@@ -173,7 +210,7 @@ version_pr() {
 check_tools
 check_main
 
-# Why the Plane module stays open after the release; empty means step 10 closes it.
+# Why the Plane module stays open after the release; empty means step 11 closes it.
 module_kept=""
 milestones=""
 if [[ -z "${PLANE_API_KEY:-}" ]]; then
@@ -192,6 +229,7 @@ fi
 tag="v$version"
 next="$(next_minor "$version")"
 check_version_free
+check_tap
 if [[ -z "$module_kept" ]] && ! plane_module_open "$milestones" "$version"; then
     module_kept="no open Plane module $version"
 fi
@@ -218,63 +256,72 @@ Release $tag. Plan:
   6. upload ${assets[0]} and ${assets[1]}
   7. check both assets on the draft
   8. publish $tag as latest
-  9. open a PR bumping plugin versions to $next and merge it
- 10. $close_plan
+  9. commit the Homebrew formula $version to $tap_repo ($formula_path)
+ 10. open a PR bumping plugin versions to $next and merge it
+ 11. $close_plan
 PLAN
 
 if $dry_run; then
+    echo ""
+    echo "Formula committed in step 9:"
+    "$render_formula" "$version" "<sha256 of the built archive>"
+    echo ""
     echo "Dry run: nothing changed."
     exit 0
 fi
 $assume_yes || confirm
 
 if versions_are "$version"; then
-    step "1/10 plugin versions already $version"
+    step "1/11 plugin versions already $version"
 else
-    step "1/10 setting plugin versions to $version"
+    step "1/11 setting plugin versions to $version"
     version_pr set "$version" "Set version $version"
 fi
 
-step "2/10 swift test"
+step "2/11 swift test"
 swift test
 
-step "3/10 building assets"
+step "3/11 building assets"
 dist="$(mktemp -d)"
 trap 'rm -rf "$dist"' EXIT
 scripts/release/package.sh "$version" "$dist"
 
-step "4/10 tagging $tag"
+step "4/11 tagging $tag"
 git tag "$tag"
 tag_created=true
 git push --quiet origin "$tag"
 
-step "5/10 creating draft release $tag"
+step "5/11 creating draft release $tag"
 gh release create "$tag" --draft --verify-tag --generate-notes --title "$tag"
 draft_created=true
 
-step "6/10 uploading assets"
+step "6/11 uploading assets"
 gh release upload "$tag" "$dist/${assets[0]}" "$dist/${assets[1]}"
 
-step "7/10 checking assets on the draft"
+step "7/11 checking assets on the draft"
 attached="$(gh release view "$tag" --json assets --jq '.assets[].name')"
 for asset in "${assets[@]}"; do
     grep -qxF "$asset" <<< "$attached" || fail "$asset is missing on the draft $tag"
 done
 
-step "8/10 publishing $tag"
+step "8/11 publishing $tag"
 gh release edit "$tag" --draft=false --latest
 published=true
 
-step "9/10 bumping plugin versions to $next"
+step "9/11 committing the Homebrew formula to $tap_repo"
+read -r archive_sha _ < "$dist/${assets[1]}"
+publish_formula
+
+step "10/11 bumping plugin versions to $next"
 version_pr bump "$next" "Bump version to $next for the next release"
 bumped=true
 
 if [[ -z "$module_kept" ]]; then
-    step "10/10 closing Plane module $version"
+    step "11/11 closing Plane module $version"
     "$root/.lunabee/board/lb-board" close-milestone "$version" > /dev/null
     module_result="Plane module $version closed."
 else
-    step "10/10 Plane module $version left open: $module_kept"
+    step "11/11 Plane module $version left open: $module_kept"
     module_result="Plane module $version left open: $module_kept."
 fi
 

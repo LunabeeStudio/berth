@@ -1,6 +1,6 @@
 ---
 issue: BERTH-15
-phase:
+phase: validated
 type: feature
 wiki: [[update]], [[release]]
 note: Tap repo LunabeeStudio/homebrew-tap created by a human, private, empty. First formula lands at the 0.6.0 release.
@@ -29,7 +29,7 @@ Decisions:
 - **Release flow.** `scripts/release/release.sh` gets a new step right after the release goes live (after step 8, before the version bump):
   - It renders the formula from a template kept in this repository, `scripts/release/homebrew/berth.rb`, with placeholders for the version and the SHA-256. The SHA comes from the `.sha256` asset the script just built.
   - It commits the rendered file to `LunabeeStudio/homebrew-tap`, `Formula/berth.rb` on the default branch, with `gh api -X PUT repos/LunabeeStudio/homebrew-tap/contents/Formula/berth.rb` (no clone; this also works on the empty repository for the first release).
-  - The plan printout lists the step, and `--dry-run` prints the rendered formula.
+  - The plan printout lists the step, and `--dry-run` prints the rendered formula. A dry run exits before the build, so the SHA-256 shows as the placeholder `<sha256 of the built archive>`. (autopilot assumption)
   - Preflight, before any change: the tap repository is reachable and the `gh` user can push to it. Otherwise the script stops and nothing is public.
   - A failure in this step happens after publish: the script prints the manual fix, like the other post-publish steps, and never deletes the tag or the release.
 - **First formula.** The first formula is published by release.sh at 0.6.0, the first release that contains the Homebrew detection. No formula for 0.5.0: a Homebrew install of 0.5.0 would self-update inside the keg, which is the clash this ticket removes.
@@ -53,14 +53,52 @@ Prior art:
 - On a Homebrew install, the berth-bar "Auto update" checkbox is disabled and unchecked, shows the tooltip `Updated by Homebrew: brew upgrade berth`, and the bar writes nothing to `config.json`. The render tests show this state in light and dark.
 - On a direct install (`~/.local/bin`, `install.sh`, `.build`), `berth update`, auto update, the plists, the re-exec and the checkbox behave exactly as before.
 - The rendered formula passes `brew audit --strict` and `brew style`. Installed from a local throwaway tap with a locally packaged tarball, `brew install` puts `berth` and `berth-bar` on PATH, `brew test berth` passes, the caveats print the next steps, `brew upgrade` to a second local version works, and the tap is removed afterwards.
-- `release.sh --dry-run` lists the formula step and prints the rendered formula with the version and the SHA-256 of the built archive.
+- `release.sh --dry-run` lists the formula step and prints the rendered formula with the version. The SHA-256 shows as a placeholder, because a dry run exits before the build. (autopilot assumption)
 - `release.sh` stops in preflight, before any change, when the tap repository is unreachable or the `gh` user cannot push to it.
 - README documents the Homebrew install for Lunabee members, the pick-one-channel rule, and that `berth update` and auto update are off under Homebrew. `docs/RELEASING.md` documents the formula step.
 
 ## Implementation
 
+Autopilot run, 2026-11-12. One implementer, 3 bricks.
+
+- Brick 1, BerthCore:
+  - `Homebrew/HomebrewInstall` (new): `init?(resolvedPath:fileExists:)` matches `<prefix>/Cellar/berth/<version>/bin/<name>` and needs `<prefix>/opt/berth/bin/<name>` to exist. It exposes `stablePath`. `current()` reads the running executable.
+  - `LaunchAgent.currentExecutablePath()` returns the stable path on a Homebrew install, and the resolved path otherwise.
+  - `UpdateError.homebrew`. `Updater` takes `isHomebrew` (default from `HomebrewInstall.current()`). `check()` and `install()` throw it first, before the dev-build check and before any network call.
+  - Tests: `HomebrewInstallTests`, plus an `UpdaterTests` case (no request, file unchanged).
+- Brick 2, daemon and bar:
+  - `AutoUpdater` takes `isHomebrew`. On a Homebrew install `run()` logs `auto update off: berth is managed by Homebrew (brew upgrade berth)` once and returns.
+  - `AutoUpdateSetting.isManagedByHomebrew`: reads unchecked, unavailable, and writes nothing.
+  - `StatusPanel`: `.help("Updated by Homebrew: brew upgrade berth")` only in that state.
+  - Tests: `AutoUpdaterTests`, `AutoUpdateSettingTests`, and render tests `auto-update-homebrew` in light and dark.
+- Brick 3, release and docs:
+  - `scripts/release/homebrew/berth.rb` (template, `{{VERSION}}` and `{{SHA256}}`) and `render.sh <X.Y.Z> <sha256>`, the one place that renders.
+  - `release.sh`: preflight `check_tap` (reachable, `permissions.push`). New step 9/11 `publish_formula` (GET the existing `sha`, 404 = first release, then `gh api -X PUT …/contents/Formula/berth.rb`). Steps renumbered to n/11. The failure text for the post-publish steps prints the manual formula fix. The dry run prints the formula with the SHA placeholder.
+  - README Install and Updates, `docs/RELEASING.md`.
+- The formula has no `version` line (it is redundant with the URL, and audit flags it). `depends_on arch: :arm64` comes before `:macos`, the order `brew style` requires.
+- Build ✅ · tests ✅ (all suites) · no new warnings.
+
 ## Review
 
+Round `validation (autopilot)`. LENSES: style ✓ · elegance ✓ · structure ✓ · correctness ✓.
+
+- Pass 1: 5 minor findings, all fixed, none withdrawn or disputed:
+  - `HomebrewInstall`: `guard case let` binding with index math → typed `keg` array.
+  - `HomebrewInstall`: `stablePath` and the init made internal; only `current()` stays public.
+  - `AutoUpdateSetting`: redundant `!isManagedByHomebrew` in the setter removed.
+  - `UpdateFixture`: unused `isHomebrew` parameter removed.
+  - Wiki `update` and `release` not updated → synced (Homebrew detection, formula step, step numbering).
+- Pass 2: clean. Build ✅, `swift test` 72 tests in 8 suites ✅, Homebrew refusal re-checked at runtime.
+
 ## Verification
+
+Run by the agent:
+- ✅ Simulated Homebrew layout (keg, `opt` symlink, `bin` symlink, stamped 0.0.1): `berth update --check` and `berth update` print `berth: installed by Homebrew, run brew upgrade berth`, exit 1, keg unchanged, no network call (`BERTH_UPDATE_URL` unreachable). A plain copy still gets the network error, and a `dev` build still gets `dev build cannot be updated`.
+- ✅ Daemon started from the simulated Homebrew install (`BERTH_HOME` scratch, empty pool): `daemon.log` shows `starting v0.0.1`, then the auto-update-off line. Simulated upgrade (0.0.2 keg, `opt` symlink retargeted, 0.0.1 keg removed): about 11 s later `re-exec after binary change`, `daemon <same pid> starting v0.0.2`, and `berth status` answers. A direct-install daemon logs no Homebrew line.
+- ✅ Render PNGs checked: the "Auto update" checkbox is greyed out and unchecked in light and dark under Homebrew. The tooltip is not visible in a PNG.
+- ✅ `bash -n` on `release.sh` and `render.sh`. Dry run (temporary copy without the `main` check, deleted): the plan lists step 9 and prints the rendered formula. The real tap preflight passes. A copy pointed at a missing repository stops in preflight with HTTP 404.
+- ✅ Local throwaway tap `local/berth15`, archives from `package.sh 0.0.1` and `0.0.2` over file:// URLs: `brew install` puts `berth` and `berth-bar` in `/opt/homebrew/opt/berth/bin`, `berth --version` prints 0.0.1, the caveats print, `brew test` passes, `berth update` from Homebrew's bin refuses with the Homebrew message. `brew upgrade` gives 0.0.2, with only the 0.0.2 keg left and `opt/berth` pointing at it. Then uninstall and untap: no `berth` keg, no `opt/berth`, no local tap.
+- ✅ `brew style`: no offenses. `brew audit --strict`: no findings on the GitHub-URL rendering. `--online` only reports the v0.6.0 URL 404, expected before the release.
+- Not run by agent: the plists written by a real `berth daemon install` and a real "Launch at login" toggle (they would overwrite the user's own agents; both take `currentExecutablePath()`, covered by `HomebrewInstallTests`), the tooltip on hover, a real release pushing the formula to the tap, the "cannot push" preflight branch, a real `brew upgrade` with a leased emulator.
 
 ## Feedback

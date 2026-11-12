@@ -38,6 +38,17 @@ mkdir -p ~/.local/bin && curl -fsSL https://github.com/LunabeeStudio/berth/relea
 
 Optional: `berth daemon install` starts the daemon at login via launchd (otherwise any command starts it). `berth bar install` does the same for `berth-bar`.
 
+### Homebrew (Lunabee members)
+
+```bash
+brew tap lunabeestudio/tap
+brew install berth                          # or: brew install lunabeestudio/tap/berth
+```
+
+The tap is private: `brew` needs your GitHub access to `LunabeeStudio/homebrew-tap`. Pick one channel. Remove `~/.local/bin/berth` and `~/.local/bin/berth-bar` before you switch to Homebrew, so the two installs do not shadow each other.
+
+`brew upgrade berth` updates both binaries. The idle daemon picks the new version up by itself.
+
 ### From source
 
 ```bash
@@ -153,6 +164,8 @@ It never starts the daemon: while the daemon is down the panel says so, and it r
 same about a minute after it starts and then every 24 h, and logs the outcome in `daemon.log`. After the binary changes on disk the
 daemon restarts itself in place once no lease, waiting claim or booting emulator is left; emulators and leases are kept.
 Untick "Auto update" in the `berth-bar` panel or set `"autoUpdate": false` to opt out; both edit the same key. The daemon reads the key before each check, so changing it needs no restart. Local `dev` builds never update. A running `berth-bar` keeps the old version until you relaunch it.
+
+Under Homebrew, `berth update` and auto update are off: `berth update` exits 1 with `installed by Homebrew, run brew upgrade berth`, the daemon never checks, and the "Auto update" checkbox is greyed out. Run `brew upgrade berth`; the launchd agents (`berth daemon install`, Launch at login) point at Homebrew's version-independent `opt` path, so they survive it.
 
 Logs: `~/Library/Logs/berth/` (`daemon.log`, one file per emulator). `BERTH_HOME` relocates config, state,
 socket and logs (keep it short: Unix socket paths are limited to 104 bytes).
