@@ -63,4 +63,14 @@ struct MirrorEligibilityTests {
 
         #expect(MirrorEligibility.showsMirrorButton(slot, pool: []))
     }
+
+    @Test
+    func `an authorized device shows the button`() {
+        #expect(MirrorEligibility.showsMirrorButton(PhysicalDevice.mock(state: .device)))
+    }
+
+    @Test(arguments: [AdbState.unauthorized, .offline, .other("no permissions")])
+    func `no button on a device that is not usable`(state: AdbState) {
+        #expect(!MirrorEligibility.showsMirrorButton(PhysicalDevice.mock(state: state)))
+    }
 }

@@ -9,19 +9,19 @@ struct EmulatorRow: View {
     let mirror: MirrorController
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(slot.serial).monospaced().frame(width: 105, alignment: .leading)
-            Text(slot.displayName).truncationMode(.middle).frame(width: 90, alignment: .leading)
+        HStack(spacing: PanelColumns.spacing) {
+            Text(slot.serial).monospaced().frame(width: PanelColumns.serial, alignment: .leading)
+            Text(slot.displayName).truncationMode(.middle).frame(width: PanelColumns.model, alignment: .leading)
             HStack(spacing: 5) {
                 Circle().fill(slot.state.color).frame(width: 8, height: 8)
                 Text(slot.state.rawValue)
             }
-            .frame(width: 70, alignment: .leading)
-            Text(slot.lease?.owner.display ?? "—").frame(width: 95, alignment: .leading)
-            Text(slot.lease?.label ?? "—").frame(width: 70, alignment: .leading)
-            Text(DurationFormat.clock(now.timeIntervalSince(slot.lease?.grantedAt ?? slot.stateSince))).monospacedDigit().frame(width: 55, alignment: .leading)
-            remaining.frame(width: 60, alignment: .leading)
-            mirrorButton.frame(width: 22)
+            .frame(width: PanelColumns.state, alignment: .leading)
+            Text(slot.lease?.owner.display ?? "—").frame(width: PanelColumns.owner, alignment: .leading)
+            Text(slot.lease?.label ?? "—").frame(width: PanelColumns.label, alignment: .leading)
+            Text(DurationFormat.clock(now.timeIntervalSince(slot.lease?.grantedAt ?? slot.stateSince))).monospacedDigit().frame(width: PanelColumns.held, alignment: .leading)
+            remaining.frame(width: PanelColumns.remaining, alignment: .leading)
+            mirrorButton.frame(width: PanelColumns.mirror)
         }
         .lineLimit(1)
         .font(.callout)

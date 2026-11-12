@@ -34,6 +34,7 @@ public actor Broker {
     private var watchers: [UUID: AsyncStream<Event>.Continuation] = [:]
     private var unacknowledged: [UUID: Set<String>] = [:]
     private var externalSerials: Set<String> = []
+    private var devices: [PhysicalDevice] = []
     private var missedTicks: [String: Int] = [:]
     private var bootFailures: [String: Int] = [:]
     private var brokenUntil: [String: Date] = [:]
@@ -181,7 +182,8 @@ public actor Broker {
             maxRunning: config.maxRunning,
             pool: config.pool,
             generatedAt: generatedAt,
-            adbRestartedAt: AdbInstability.isUnstable(restartedAt: adbRestartedAt, now: generatedAt) ? adbRestartedAt : nil
+            adbRestartedAt: AdbInstability.isUnstable(restartedAt: adbRestartedAt, now: generatedAt) ? adbRestartedAt : nil,
+            devices: devices
         )
     }
 
@@ -200,8 +202,10 @@ public actor Broker {
 
     public func restore() async {
         let saved = store?.load() ?? []
-        let live = await backend.liveSerials() ?? []
+        let listing: DeviceListing? = await backend.listing()
+        let live: Set<String> = listing?.live ?? []
         externalSerials = live
+        devices = listing?.devices ?? []
         let adopted: [Slot] = saved.filter { live.contains($0.serial) }
         let ordered: [Slot] = adopted.filter { $0.instance != nil } + adopted.filter { $0.instance == nil }.sorted { $0.serial.numericallyPrecedes($1.serial) }
         for var slot in ordered {
@@ -219,9 +223,14 @@ public actor Broker {
 
     public func reap() async {
         await watchAdbServer()
-        let live = await backend.liveSerials()
+        let listing: DeviceListing? = await backend.listing()
+        let live: Set<String>? = listing?.live
         let current = now()
 
+        if let listing, listing.devices != devices {
+            devices = listing.devices
+            changed()
+        }
         if let live {
             externalSerials = live
             for slot in slots.values where slot.state == .free || slot.state == .leased {

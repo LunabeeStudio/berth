@@ -1,4 +1,4 @@
-import BerthCore
+@testable import BerthCore
 @testable import BerthDaemon
 import Foundation
 import Testing
@@ -43,5 +43,48 @@ struct DeviceRouterTests {
         let config = Config(pool: [PoolEntry(name: "Pixel", maxInstances: 1)])
         let router = DeviceRouter(config: config, android: FakeBackend(), ios: NilLiveBackend())
         #expect(await router.liveSerials() == [])
+    }
+
+    @Test
+    func `devices come from the android backend and live serials stay platform scoped`() async throws {
+        let android: FakeBackend = .init()
+        let ios: FakeBackend = .init()
+        android.attach([.mock()])
+        _ = try await android.launch(serial: "emulator-5554", model: "Pixel", windowed: false)
+
+        let listing: DeviceListing? = await router(android: android, ios: ios).listing()
+
+        #expect(listing == DeviceListing(live: ["emulator-5554"], devices: [.mock()]))
+    }
+
+    @Test
+    func `an ios only pool still lists physical devices without android live serials`() async throws {
+        let android: FakeBackend = .init()
+        android.attach([.mock()])
+        _ = try await android.launch(serial: "emulator-5554", model: "Pixel", windowed: false)
+        let config: Config = .init(pool: [PoolEntry(name: "iPhone 17", platform: .ios, maxInstances: 1)])
+
+        let listing: DeviceListing? = await DeviceRouter(config: config, android: android, ios: FakeBackend()).listing()
+
+        #expect(listing == DeviceListing(live: [], devices: [.mock()]))
+    }
+
+    @Test
+    func `an empty pool still lists physical devices`() async {
+        let android: FakeBackend = .init()
+        android.attach([.mock()])
+
+        let listing: DeviceListing? = await DeviceRouter(config: .init(pool: []), android: android, ios: FakeBackend()).listing()
+
+        #expect(listing?.devices == [.mock()])
+    }
+
+    @Test
+    func `an unreadable android backend outside the pool does not blank the listing`() async {
+        let config: Config = .init(pool: [PoolEntry(name: "iPhone 17", platform: .ios, maxInstances: 1)])
+
+        let listing: DeviceListing? = await DeviceRouter(config: config, android: NilLiveBackend(), ios: FakeBackend()).listing()
+
+        #expect(listing == DeviceListing())
     }
 }

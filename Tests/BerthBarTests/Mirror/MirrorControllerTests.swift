@@ -54,6 +54,49 @@ struct MirrorControllerTests {
     }
 
     @Test
+    func `a physical device opens a controlled mirror titled with its model`() throws {
+        let controller: MirrorController = makeController()
+
+        controller.open(.mock())
+
+        let launch: FakeMirrorLauncher.Launch = try #require(launcher.launches.first)
+        #expect(launch.arguments == ScrcpyArguments.make(serial: "R3CT312YV5B", name: "SM_S901B", mode: .control))
+        #expect(!launch.arguments.contains("--no-control"))
+    }
+
+    @Test
+    func `a physical device without a model is titled with its serial`() throws {
+        let controller: MirrorController = makeController()
+
+        controller.open(.mock(model: nil))
+
+        let launch: FakeMirrorLauncher.Launch = try #require(launcher.launches.first)
+        #expect(launch.arguments == ScrcpyArguments.make(serial: "R3CT312YV5B", name: "R3CT312YV5B", mode: .control))
+    }
+
+    @Test
+    func `a second click on a physical device brings its mirror to front`() {
+        var activated: [Int32] = []
+        let controller: MirrorController = makeController { activated.append($0) }
+
+        controller.open(.mock())
+        controller.open(.mock())
+
+        #expect(launcher.launches.count == 1)
+        #expect(activated == [100])
+    }
+
+    @Test
+    func `a snapshot never switches a physical device mirror to view only`() {
+        let controller: MirrorController = makeController()
+        controller.open(.mock())
+
+        controller.apply(.mock(slots: [.mock(state: .leased, lease: .mock())], devices: [.mock()]))
+
+        #expect(launcher.launches.count == 1)
+    }
+
+    @Test
     func `two serials open two mirrors`() {
         let controller: MirrorController = makeController()
 

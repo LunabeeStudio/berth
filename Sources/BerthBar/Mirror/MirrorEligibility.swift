@@ -9,6 +9,10 @@ enum MirrorEligibility {
         }
     }
 
+    static func showsMirrorButton(_ device: PhysicalDevice) -> Bool {
+        device.state == .device
+    }
+
     static func help(for slot: Slot, pool: [PoolEntry]) -> String {
         switch (pool.platform(of: slot.model), slot.state) {
         case (.android, _): "Mirror"

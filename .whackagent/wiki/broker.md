@@ -35,7 +35,7 @@ Two notions. `Slot.windowed` = boot mode (window, kept for slot life). `Lease.ma
 - Free windowed = normal free slot: idle stop, eviction, `stopAll`. Launcher left mid-boot → slot just ends free. Vanish → stopped as usual.
 
 ## Reap (every 5 s)
-- `liveSerials` from adb; free/leased slot missing 3 ticks (or pid dead + missing) → stop.
+- `listing()` from backend (Android: one `adb devices -l`) → live serials + physical devices; free/leased slot missing 3 ticks (or pid dead + missing) → stop. Devices published in snapshot, never slots ([[architecture]]); failed poll keeps last list.
 - Dead owners / expired leases → reset; dead-owner waiters → failure.
 - Free > `idleShutdownSeconds` → stop.
 

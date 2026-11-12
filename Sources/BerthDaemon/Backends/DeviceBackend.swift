@@ -10,9 +10,11 @@ public protocol DeviceBackend: Sendable {
     func reset(serial: String, model: String, pid: Int32?, windowed: Bool) async throws -> Int32?
     func shutdown(serial: String, pid: Int32?) async
     func liveSerials() async -> Set<String>?
+    func listing() async -> DeviceListing?
     func isProcessAlive(_ pid: Int32) -> Bool
 }
 
 public extension DeviceBackend {
     func unavailableReason(model: String) -> String? { nil }
+    func listing() async -> DeviceListing? { await liveSerials().map { DeviceListing(live: $0) } }
 }

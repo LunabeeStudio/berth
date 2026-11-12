@@ -50,6 +50,11 @@ final class MirrorController {
         }
     }
 
+    func open(_ device: PhysicalDevice) {
+        caption = nil
+        openScrcpy(serial: device.serial, name: device.model ?? device.serial, mode: .control)
+    }
+
     func apply(_ snapshot: StateSnapshot) {
         for slot in snapshot.slots where slot.state == .leased {
             guard let session = sessions[slot.serial], session.mode == .control else { continue }
@@ -74,11 +79,15 @@ final class MirrorController {
     }
 
     private func openScrcpy(_ slot: Slot) {
-        if let session = sessions[slot.serial] {
+        openScrcpy(serial: slot.serial, name: slot.displayName, mode: slot.state == .free ? .control : .viewOnly)
+    }
+
+    private func openScrcpy(serial: String, name: String, mode: MirrorMode) {
+        if let session = sessions[serial] {
             activate(session.process.pid)
             return
         }
-        start(serial: slot.serial, name: slot.displayName, mode: slot.state == .free ? .control : .viewOnly)
+        start(serial: serial, name: name, mode: mode)
     }
 
     private func openInDeviceHub(udid: String) {

@@ -104,14 +104,12 @@ public final class AndroidBackend: DeviceBackend {
     }
 
     public func liveSerials() async -> Set<String>? {
-        guard let result = try? await Shell.run(adb, ["devices"], timeout: .seconds(10)), result.succeeded else { return nil }
-        return Set(
-            result.stdout
-                .split(whereSeparator: \.isNewline)
-                .dropFirst()
-                .compactMap { $0.split(whereSeparator: \.isWhitespace).first.map(String.init) }
-                .filter { $0.hasPrefix("emulator-") }
-        )
+        await listing()?.live
+    }
+
+    public func listing() async -> DeviceListing? {
+        guard let result = try? await Shell.run(adb, ["devices", "-l"], timeout: .seconds(10)), result.succeeded else { return nil }
+        return DeviceListing.parse(adbDevices: result.stdout)
     }
 
     public func isProcessAlive(_ pid: Int32) -> Bool {

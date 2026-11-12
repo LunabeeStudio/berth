@@ -58,6 +58,13 @@ struct StatusPanelRenderTests {
         return .live(.mock(slots: [free, leased, windowed, simulator, resetting], pool: pool, generatedAt: now))
     }
 
+    private static func devices() -> StatusState {
+        let phone: PhysicalDevice = .mock()
+        let locked: PhysicalDevice = .mock(serial: "adb-9A2B3C4D5E._adb-tls-connect._tcp", model: nil, state: .unauthorized)
+        let wifi: PhysicalDevice = .mock(serial: "192.168.100.200:5555", model: "Pixel_Fold")
+        return .live(.mock(generatedAt: now, devices: [phone, locked, wifi]))
+    }
+
     private static func render(
         _ state: StatusState,
         named name: String,
@@ -151,6 +158,11 @@ struct StatusPanelRenderTests {
     @Test(arguments: [(NSAppearance.Name.aqua, "live-mirror"), (.darkAqua, "live-mirror-dark")])
     func `mirror button rows render in every appearance`(appearance: NSAppearance.Name, name: String) throws {
         Self.expectPanelSized(try Self.render(Self.mirrorable(), named: name, appearance: appearance))
+    }
+
+    @Test(arguments: [(NSAppearance.Name.aqua, "live-devices"), (.darkAqua, "live-devices-dark")])
+    func `device rows render in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        Self.expectPanelSized(try Self.render(Self.devices(), named: name, appearance: appearance))
     }
 
     @Test(arguments: [(NSAppearance.Name.aqua, "auto-update-off"), (.darkAqua, "auto-update-off-dark")])

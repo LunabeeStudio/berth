@@ -15,6 +15,7 @@ final class FakeBackend: DeviceBackend {
 
     struct State {
         var live: Set<String> = []
+        var devices: [PhysicalDevice] = []
         var failingModels: Set<String> = []
         var failReset = false
         var holdResets = false
@@ -35,6 +36,7 @@ final class FakeBackend: DeviceBackend {
     func holdLaunches(_ hold: Bool) { state.withLock { $0.holdLaunches = hold } }
     func holdResets(_ hold: Bool) { state.withLock { $0.holdResets = hold } }
     func isLive(_ serial: String) -> Bool { state.withLock { $0.live.contains(serial) } }
+    func attach(_ devices: [PhysicalDevice]) { state.withLock { $0.devices = devices } }
     func failResets() { state.withLock { $0.failReset = true } }
     func vanish(_ serial: String) { state.withLock { _ = $0.live.remove(serial) } }
     var resets: [String] { state.withLock { $0.resets } }
@@ -79,5 +81,6 @@ final class FakeBackend: DeviceBackend {
     }
 
     func liveSerials() async -> Set<String>? { state.withLock { $0.live } }
+    func listing() async -> DeviceListing? { state.withLock { DeviceListing(live: $0.live, devices: $0.devices) } }
     func isProcessAlive(_ pid: Int32) -> Bool { true }
 }
