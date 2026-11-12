@@ -60,4 +60,22 @@ struct ModelDecodingTests {
 
         #expect(try Wire.decoder().decode(StateSnapshot.self, from: data).adbRestartedAt == restartedAt)
     }
+
+    @Test
+    func `a snapshot saved before devices existed decodes with no devices`() throws {
+        let json: String = #"{"slots":[],"queue":[],"maxRunning":2,"pool":[],"generatedAt":0}"#
+
+        let snapshot: StateSnapshot = try Wire.decoder().decode(StateSnapshot.self, from: Data(json.utf8))
+
+        #expect(snapshot.devices.isEmpty)
+    }
+
+    @Test
+    func `devices survive an encode decode round trip`() throws {
+        let device: PhysicalDevice = .mock(model: nil, state: .other("no permissions"))
+
+        let data: Data = try Wire.encoder().encode(StateSnapshot.mock(devices: [device]))
+
+        #expect(try Wire.decoder().decode(StateSnapshot.self, from: data).devices == [device])
+    }
 }

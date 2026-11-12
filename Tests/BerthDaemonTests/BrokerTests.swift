@@ -1,4 +1,4 @@
-import BerthCore
+@testable import BerthCore
 @testable import BerthDaemon
 import Foundation
 import Testing
@@ -171,5 +171,33 @@ import Testing
         try await eventually { clients.filter { $0.grant != nil }.count == 2 }
         #expect(await h.slots().count == 2)
         #expect(await h.queue().count == 1)
+    }
+
+    @Test
+    func `physical devices are published but never become slots or grants`() async throws {
+        let harness: Harness = .init(maxRunning: 1)
+        let phone: PhysicalDevice = .mock()
+        harness.backend.attach([phone])
+
+        await harness.broker.reap()
+        let client: Client = await harness.claim()
+        try await eventually { client.grant != nil }
+
+        let snapshot: StateSnapshot = await harness.broker.snapshot()
+        #expect(snapshot.devices == [phone])
+        #expect(snapshot.slots.map(\.serial) == ["emulator-5554"])
+        #expect(client.grant?.serial == "emulator-5554")
+    }
+
+    @Test
+    func `an unplugged device leaves the snapshot on the next reap`() async {
+        let harness: Harness = .init()
+        harness.backend.attach([.mock(serial: "A", model: nil, state: .unauthorized)])
+        await harness.broker.reap()
+
+        harness.backend.attach([])
+        await harness.broker.reap()
+
+        #expect(await harness.broker.snapshot().devices.isEmpty)
     }
 }

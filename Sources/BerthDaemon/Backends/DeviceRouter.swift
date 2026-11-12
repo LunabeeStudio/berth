@@ -44,12 +44,21 @@ public struct DeviceRouter: DeviceBackend {
     }
 
     public func liveSerials() async -> Set<String>? {
-        var live: Set<String> = []
-        for platform in Set(config.pool.map(\.platform)) {
-            guard let serials = await (platform == .ios ? ios : android).liveSerials() else { return nil }
-            live.formUnion(serials)
+        await listing()?.live
+    }
+
+    public func listing() async -> DeviceListing? {
+        var merged: DeviceListing = .init()
+        let platforms: Set<Platform> = Set(config.pool.map(\.platform))
+        for platform in platforms {
+            guard let listing = await (platform == .ios ? ios : android).listing() else { return nil }
+            merged.live.formUnion(listing.live)
+            merged.devices += listing.devices
         }
-        return live
+        if !platforms.contains(.android), let listing = await android.listing() {
+            merged.devices += listing.devices
+        }
+        return merged
     }
 
     public func isProcessAlive(_ pid: Int32) -> Bool {

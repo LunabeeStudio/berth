@@ -123,14 +123,24 @@ public struct StateSnapshot: Codable, Sendable {
     public var pool: [PoolEntry]
     public var generatedAt: Date
     public var adbRestartedAt: Date?
+    public var devices: [PhysicalDevice]
 
-    public init(slots: [Slot], queue: [WaiterInfo], maxRunning: Int, pool: [PoolEntry], generatedAt: Date, adbRestartedAt: Date? = nil) {
+    public init(
+        slots: [Slot],
+        queue: [WaiterInfo],
+        maxRunning: Int,
+        pool: [PoolEntry],
+        generatedAt: Date,
+        adbRestartedAt: Date? = nil,
+        devices: [PhysicalDevice] = []
+    ) {
         self.slots = slots
         self.queue = queue
         self.maxRunning = maxRunning
         self.pool = pool
         self.generatedAt = generatedAt
         self.adbRestartedAt = adbRestartedAt
+        self.devices = devices
     }
 
     public init(from decoder: any Decoder) throws {
@@ -141,6 +151,7 @@ public struct StateSnapshot: Codable, Sendable {
         pool = try container.decode([PoolEntry].self, forKey: .pool)
         generatedAt = try container.decode(Date.self, forKey: .generatedAt)
         adbRestartedAt = try container.decodeIfPresent(Date.self, forKey: .adbRestartedAt)
+        devices = try container.decodeIfPresent([PhysicalDevice].self, forKey: .devices) ?? []
     }
 }
 
@@ -219,8 +230,9 @@ extension StateSnapshot {
         maxRunning: Int = 3,
         pool: [PoolEntry] = [],
         generatedAt: Date = .init(timeIntervalSince1970: 0),
-        adbRestartedAt: Date? = nil
+        adbRestartedAt: Date? = nil,
+        devices: [PhysicalDevice] = []
     ) -> StateSnapshot {
-        .init(slots: slots, queue: queue, maxRunning: maxRunning, pool: pool, generatedAt: generatedAt, adbRestartedAt: adbRestartedAt)
+        .init(slots: slots, queue: queue, maxRunning: maxRunning, pool: pool, generatedAt: generatedAt, adbRestartedAt: adbRestartedAt, devices: devices)
     }
 }

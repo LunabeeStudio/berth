@@ -50,6 +50,13 @@ struct StatusPanel: View {
         ForEach(snapshot.slots) { slot in
             EmulatorRow(slot: slot, now: model.now, pool: snapshot.pool, launcher: launcher, mirror: mirror)
         }
+        Text("Devices").font(.subheadline.bold())
+        if snapshot.devices.isEmpty {
+            Text("none connected").foregroundStyle(.secondary)
+        }
+        ForEach(snapshot.devices) { device in
+            DeviceRow(device: device, mirror: mirror)
+        }
         Text("Queue").font(.subheadline.bold())
         if snapshot.queue.isEmpty {
             Text("empty").foregroundStyle(.secondary)
