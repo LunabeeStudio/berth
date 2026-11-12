@@ -94,6 +94,10 @@ public struct Config: Codable, Sendable {
         URL(fileURLWithPath: resolvedSDKRoot).appending(path: "platform-tools/adb").path
     }
 
+    public var emulatorPath: String {
+        URL(fileURLWithPath: resolvedSDKRoot).appending(path: "emulator/emulator").path
+    }
+
     public func platform(of model: String) -> Platform {
         pool.platform(of: model)
     }
@@ -116,14 +120,33 @@ public struct Config: Codable, Sendable {
     }
 
     public static func setAutoUpdate(_ value: Bool, at url: URL = Paths.config) throws {
+        try editRawJSON(at: url) { object, _ in
+            object[CodingKeys.autoUpdate.stringValue] = value
+            return true
+        }
+    }
+
+    @discardableResult
+    public static func appendPoolEntry(_ entry: PoolEntry, at url: URL = Paths.config) throws -> Bool {
+        try editRawJSON(at: url) { object, config in
+            guard !config.pool.contains(where: { $0.name == entry.name && $0.platform == entry.platform }) else { return false }
+            let encoded: Any = try JSONSerialization.jsonObject(with: JSONEncoder().encode(entry))
+            object[CodingKeys.pool.stringValue] = (object[CodingKeys.pool.stringValue] as? [Any] ?? []) + [encoded]
+            return true
+        }
+    }
+
+    @discardableResult
+    private static func editRawJSON(at url: URL, _ edit: (inout [String: Any], Config) throws -> Bool) throws -> Bool {
         let data: Data = try Data(contentsOf: url)
-        _ = try JSONDecoder().decode(Config.self, from: data)
+        let config: Config = try JSONDecoder().decode(Config.self, from: data)
         guard var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "config is not a JSON object"))
         }
-        object[CodingKeys.autoUpdate.stringValue] = value
+        guard try edit(&object, config) else { return false }
         let updated: Data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
         try updated.write(to: url, options: .atomic)
+        return true
     }
 
     public static func loadOrCreate(discoverModels: (String) async -> [String]) async throws -> Config {

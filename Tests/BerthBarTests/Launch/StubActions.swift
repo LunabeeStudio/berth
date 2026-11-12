@@ -13,6 +13,7 @@ final class StubActions: DaemonActions {
     private struct State {
         var failure: String?
         var releases: [String] = []
+        var prepares: [PrepareRequest] = []
     }
 
     init(failure: String?) {
@@ -25,6 +26,13 @@ final class StubActions: DaemonActions {
     }
 
     var releases: [String] { state.withLock { $0.releases } }
+
+    var prepares: [PrepareRequest] { state.withLock { $0.prepares } }
+
+    func prepare(_ request: PrepareRequest) async throws {
+        state.withLock { $0.prepares.append(request) }
+        if let failure { throw StubError(description: failure) }
+    }
 
     func claim(_ request: ClaimRequest) async throws {
         if let failure { throw StubError(description: failure) }

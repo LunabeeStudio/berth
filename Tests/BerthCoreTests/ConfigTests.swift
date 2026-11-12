@@ -134,4 +134,44 @@ struct ConfigTests {
         let expected: [String: Any] = ["future": ["a": [1, 2]], "maxRunning": 3, "autoUpdate": false]
         #expect(NSDictionary(dictionary: object).isEqual(to: expected))
     }
+
+    @Test
+    func `appendPoolEntry adds the entry and keeps every other key`() throws {
+        let url: URL = Self.temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(#"{"maxRunning": 7, "extra": "kept", "pool": [{"avd": "Old", "maxInstances": 1}]}"#.utf8).write(to: url)
+
+        let added: Bool = try Config.appendPoolEntry(.init(name: "Pixel_9", maxInstances: 2), at: url)
+
+        #expect(added)
+        let config: Config = try #require(try Config.load(from: url))
+        #expect(config.maxRunning == 7)
+        #expect(config.pool == [.init(name: "Old", maxInstances: 1), .init(name: "Pixel_9", maxInstances: 2)])
+        let object: [String: Any] = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        #expect(object["extra"] as? String == "kept")
+    }
+
+    @Test
+    func `appendPoolEntry creates the pool when the key is absent`() throws {
+        let url: URL = Self.temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(#"{"maxRunning": 3}"#.utf8).write(to: url)
+
+        try Config.appendPoolEntry(.init(name: "Pixel_9", maxInstances: 2), at: url)
+
+        #expect(try Config.load(from: url)?.pool == [.init(name: "Pixel_9", maxInstances: 2)])
+    }
+
+    @Test
+    func `appendPoolEntry does not duplicate an existing entry`() throws {
+        let url: URL = Self.temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let json: String = #"{"pool": [{"avd": "Pixel_9", "maxInstances": 5}]}"#
+        try Data(json.utf8).write(to: url)
+
+        let added: Bool = try Config.appendPoolEntry(.init(name: "Pixel_9", maxInstances: 2), at: url)
+
+        #expect(!added)
+        #expect(try Data(contentsOf: url) == Data(json.utf8))
+    }
 }

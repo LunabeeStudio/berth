@@ -1,6 +1,6 @@
 ---
 issue: BERTH-16
-phase:
+phase: validated
 type: feature
 wiki: [android-backend, architecture, broker, cli]
 note:
@@ -78,3 +78,48 @@ Ticket idea (pasted 2026-11-12): "Improve the setup: add the prepare feature to 
 - Picking a pool AVD in "Launch emulator" still makes a windowed claim: the row shows label `you` and a Release button.
 - `berth prepare` on an iOS pool entry or an unknown AVD name is still refused with the same messages as today.
 - The panel render tests cover the two menus and a `preparing` row (`BERTH_PANEL_PNG_DIR=<dir> swift test --filter StatusPanelRender`).
+
+## Implementation
+
+Run by `/wa-autopilot` on 2026-11-12, in 4 bricks.
+
+1. BerthCore: `Android/AVDCatalog.swift` and `Android/AVD.swift` hold the AVD-on-disk helpers moved out of `AndroidBackend` (`list`, `directory`, `hasSnapshot`, `avds(config:)`). `Protocol.swift` gains `PrepareRequest`, `Request.prepare` and `Event.progress`. `Model.swift` gains `SlotState.preparing`, and an unknown raw value decodes as `.booting`. `Config` gains `appendPoolEntry` and `emulatorPath`, and `editRawJSON` is shared with `setAutoUpdate`.
+2. BerthDaemon: `Prepare/AVDPreparing.swift` (public protocol) and `Prepare/AVDPreparer.swift` (internal) hold the CLI sequence, moved unchanged. The Broker gains a `prepare` entry: refusals, stop of free instances (awaits `shutdownTasks`), the `preparing` slot, `hasInstanceRoom` false while preparing, live pool join on success, and cancel on disconnect, stop or stop-all. `DeviceBackend.poolChanged` lets `DeviceRouter` (config in a `Mutex`) follow the live pool. `Server` routes `.prepare`.
+3. berth CLI: `Commands/Prepare.swift` is a thin client of `DaemonClient.prepare(_:autoSpawn:onProgress:)`. `StatusRenderer` renders `preparing` rows.
+4. berth-bar: `Launch/AVDList` is refreshed on each popover open. `Launch/PlainEmulatorLauncher` and `Launch/SystemPlainEmulatorLauncher` run a detached `emulator -avd`. `EmulatorLauncher` gains `prepare(avd:)` and `launchPlain(avd:)`. `Panel/AVDMenuItems` holds the pure item logic, and `Panel/AVDMenus` the "Launch emulator" and "Prepare AVD" menus.
+
+Build: `swift build` gives 0 warnings. `swift test` is green in all 4 suites (63 + 134 + 64 + 79 tests).
+
+## Review
+
+### validation (autopilot) — 2026-11-12
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict clean after 3 rounds.
+
+- Round 1, 14 findings, all fixed:
+  - 🟠 A cancel coming from stop or stop-all left the prepare client hanging. It now sends `prepare of <avd> cancelled`, with a test.
+  - 🟡 The router kept its start-time pool. It now has `poolChanged`, with a test.
+  - 🟡 `waitForStops` polled every 20 ms. It now awaits `shutdownTasks`.
+  - 🟡 `editRawJSON` now holds the duplicated raw JSON edit.
+  - 🟡 Files were split to one type per file: `AVD`, `SystemPlainEmulatorLauncher`, `ProtocolDecodingTests`, `DaemonClientPrepareTests`, and `FakePreparer.Failure` nested.
+  - 🟡 `AVDMenuItems` moved to `Panel/`.
+  - 🟡 `AVDPreparer` is now internal.
+  - 🟡 `AVD` uses `let`.
+  - 🟡 Member order and doc comment noise fixed.
+- Round 2, 1 finding, fixed: 🟡 a prepare from a pool with no Android entry missed emulators running outside berth, and their ports. `AVDPreparing.liveSerials()` now feeds both checks, with a test.
+- Round 3: clean. Nothing withdrawn or disputed.
+
+## Verification
+
+Runtime proof by the implementer, using its own debug daemon (`BERTH_HOME=/tmp/b16`, iOS-only pool) and a throwaway AVD `BerthPrepTest` that was created and then deleted. It never touched the user's AVDs or daemon.
+
+- ✅ `berth prepare NoSuchAvd` printed `unknown AVD 'NoSuchAvd'`, exit 1. `berth prepare "iPhone 17"` printed the iOS refusal, exit 1. No emulator started.
+- ❌ Not run live: refusal of an AVD running outside berth. The berth guard hook blocks a hand-launched emulator. Unit tests cover it, including a pool with no Android entry.
+- ✅ While preparing, `berth status` showed `emulator-5554 BerthPrepTest preparing`. stderr showed the progress lines, then `saved snapshot 'berth-clean' for BerthPrepTest`, exit 0. The snapshot directory existed. `config.json` gained `{"avd": "BerthPrepTest", "maxInstances": 2}` and its other keys were unchanged. A following `berth claim --avd BerthPrepTest` was granted with the same daemon pid, and the slot stayed leased across reap ticks.
+- ✅ With a lease held, prepare failed at once with `BerthPrepTest is in use: emulator-5554 leased by claude#49337`, exit 1. The instance stayed leased.
+- ✅ After a release the slot was free. Prepare stopped the free instance and prepared on a new serial. A claim sent during the prepare waited at queue position 1, no second instance booted, and the claim was granted after the prepare. There was no duplicate pool entry.
+- ✅ SIGINT to the prepare client after the "cold booting" line: the client exited, the slot and the emulator were gone within 8 s, and `config.json` was byte-identical.
+- ✅ `berth stop-all` during a prepare: the client exited 1 with `prepare of BerthPrepTest cancelled`, the emulator was gone, and the config was unchanged.
+- Note: a claim for an AVD that is not yet in the pool, sent during its first prepare, is refused as "not in the pool". This follows the decision that only prepare joins the pool. Queueing is proven for a pool AVD.
+- Panel render PNGs, from `BERTH_PANEL_PNG_DIR=… swift test --filter StatusPanelRender`: `live-avd-menus.png` (both menus, closed), `live-preparing.png`, `live-preparing-dark.png`.
+- Not run by an agent, for a human to check (desktop proof rules): opening the popover, the content of both menus, picking items, and the windowed plain launch.

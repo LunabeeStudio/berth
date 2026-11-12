@@ -15,7 +15,12 @@ public struct Owner: Codable, Sendable, Hashable {
 }
 
 public enum SlotState: String, Codable, Sendable {
-    case booting, free, leased, resetting, stopping
+    case booting, free, leased, resetting, stopping, preparing
+
+    public init(from decoder: any Decoder) throws {
+        let raw: String = try decoder.singleValueContainer().decode(String.self)
+        self = SlotState(rawValue: raw) ?? .booting
+    }
 }
 
 public struct Lease: Codable, Sendable, Hashable {

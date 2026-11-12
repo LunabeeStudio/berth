@@ -12,9 +12,11 @@ public protocol DeviceBackend: Sendable {
     func liveSerials() async -> Set<String>?
     func listing() async -> DeviceListing?
     func isProcessAlive(_ pid: Int32) -> Bool
+    func poolChanged(_ pool: [PoolEntry])
 }
 
 public extension DeviceBackend {
     func unavailableReason(model: String) -> String? { nil }
+    func poolChanged(_ pool: [PoolEntry]) {}
     func listing() async -> DeviceListing? { await liveSerials().map { DeviceListing(live: $0) } }
 }

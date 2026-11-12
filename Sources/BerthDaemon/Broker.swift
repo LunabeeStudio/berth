@@ -11,6 +11,12 @@ public actor Broker {
         var lastPosition: Int?
     }
 
+    private enum PrepareOutcome {
+        case saved
+        case failed(String)
+        case cancelled
+    }
+
     private struct ReplacementMark {
         let slowSince: Date
         let replacement: String
@@ -22,8 +28,10 @@ public actor Broker {
     static let brokenCooldown: TimeInterval = 600
     static let slowTransition: TimeInterval = 60
 
-    private let config: Config
+    private var config: Config
     private let backend: any DeviceBackend
+    private let preparer: (any AVDPreparing)?
+    private let configURL: URL
     private let store: StateStore?
     private let now: @Sendable () -> Date
     private let ownerAlive: @Sendable (Owner) -> Bool
@@ -39,6 +47,9 @@ public actor Broker {
     private var bootFailures: [String: Int] = [:]
     private var brokenUntil: [String: Date] = [:]
     private var replacedSlowSlots: [String: ReplacementMark] = [:]
+    private var shutdownTasks: [String: Task<Void, Never>] = [:]
+    private var prepareTasks: [String: Task<Void, Never>] = [:]
+    private var prepareConns: [UUID: String] = [:]
     private var generationCounter = 0
     private var adbRestartDetector: AdbRestartDetector = .init()
     private var adbRestartedAt: Date?
@@ -46,6 +57,8 @@ public actor Broker {
     public init(
         config: Config,
         backend: any DeviceBackend,
+        preparer: (any AVDPreparing)? = nil,
+        configURL: URL = Paths.config,
         store: StateStore? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         ownerAlive: @escaping @Sendable (Owner) -> Bool = ProcessInspector.isAlive,
@@ -53,6 +66,8 @@ public actor Broker {
     ) {
         self.config = config
         self.backend = backend
+        self.preparer = preparer
+        self.configURL = configURL
         self.store = store
         self.now = now
         self.ownerAlive = ownerAlive
@@ -99,6 +114,57 @@ public actor Broker {
         }
         waiters.append(Waiter(id: Self.shortID(), conn: conn, request: request, enqueuedAt: now(), sink: sink))
         if platform == .android, let notice = adbNotice() { sink.yield(.ok(notice)) }
+        schedule()
+    }
+
+    public func prepare(_ request: PrepareRequest, conn: UUID, sink: AsyncStream<Event>.Continuation) async {
+        let avd: String = request.avd
+        guard let preparer else {
+            sink.yield(.failure("prepare is not available"))
+            return
+        }
+        if config.entry(for: avd)?.platform == .ios {
+            sink.yield(.failure("'\(avd)' is an iOS simulator; berth erases simulators on release, so prepare is Android-only"))
+            return
+        }
+        guard await preparer.knownAVDs().contains(avd) else {
+            sink.yield(.failure("unknown AVD '\(avd)'"))
+            return
+        }
+        let live: Set<String> = (await backend.liveSerials() ?? []).union(await preparer.liveSerials())
+        for serial in live.sorted() where slots[serial] == nil {
+            if await preparer.avdName(serial: serial) == avd {
+                sink.yield(.failure("\(avd) is already running as \(serial); close it first"))
+                return
+            }
+        }
+        let instances: [Slot] = slots.values.filter { $0.model == avd }.sorted { $0.serial.numericallyPrecedes($1.serial) }
+        if let busy = instances.first(where: { $0.state != .free }) {
+            let holder: String = busy.state == .leased ? "leased by \(busy.lease?.owner.display ?? "an agent")" : busy.state.rawValue
+            sink.yield(.failure("\(avd) is in use: \(busy.serial) \(holder)"))
+            return
+        }
+        let taken: Set<String> = Set(slots.keys).union(externalSerials).union(live)
+        guard let serial = backend.nextSerial(model: avd, taken: taken) else {
+            sink.yield(.failure("no free emulator port"))
+            return
+        }
+        for instance in instances { beginStop(instance.serial, reason: "preparing \(avd)") }
+        let generation: Int = nextGeneration()
+        slots[serial] = Slot(serial: serial, model: avd, pid: nil, state: .preparing, stateSince: now(), generation: generation)
+        prepareConns[conn] = serial
+        Log.info("\(serial): preparing \(avd)")
+        let settle: Int = request.settle
+        prepareTasks[serial] = Task {
+            var outcome: PrepareOutcome = .saved
+            do {
+                try await self.waitForStops(of: avd)
+                try await preparer.prepare(avd: avd, serial: serial, settle: settle) { sink.yield(.progress($0)) }
+            } catch {
+                outcome = Task.isCancelled ? .cancelled : .failed("\(error)")
+            }
+            self.prepareFinished(serial: serial, generation: generation, avd: avd, conn: conn, sink: sink, outcome: outcome)
+        }
         schedule()
     }
 
@@ -156,6 +222,7 @@ public actor Broker {
     /// A claim whose client disconnected before acknowledging the grant goes back to the pool.
     public func connectionClosed(_ conn: UUID) {
         watchers[conn] = nil
+        if let serial = prepareConns[conn] { prepareTasks[serial]?.cancel() }
         let before = waiters.count
         waiters.removeAll { $0.conn == conn }
         var dirty = waiters.count != before
@@ -209,6 +276,7 @@ public actor Broker {
         let adopted: [Slot] = saved.filter { live.contains($0.serial) }
         let ordered: [Slot] = adopted.filter { $0.instance != nil } + adopted.filter { $0.instance == nil }.sorted { $0.serial.numericallyPrecedes($1.serial) }
         for var slot in ordered {
+            if slot.state == .preparing { slot.state = .booting }
             if slot.instance == nil { slot.instance = lowestFreeInstance(of: slot.model) }
             slot.generation = nextGeneration()
             slot.lease?.acknowledged = true
@@ -426,6 +494,7 @@ public actor Broker {
 
     private func hasInstanceRoom(_ model: String) -> Bool {
         let limit = config.entry(for: model)?.maxInstances ?? 1
+        if slots.values.contains(where: { $0.model == model && $0.state == .preparing }) { return false }
         return slots.values.filter { $0.model == model }.count < limit
     }
 
@@ -574,14 +643,19 @@ public actor Broker {
 
     private func startShutdown(serial: String, generation: Int, pid: Int32?) {
         let backend = backend
-        Task {
+        shutdownTasks[serial] = Task {
             await backend.shutdown(serial: serial, pid: pid)
             self.removeSlot(serial: serial, generation: generation)
+            self.shutdownTasks[serial] = nil
         }
     }
 
     private func beginStop(_ serial: String, reason: String) {
         guard let slot = slots[serial], slot.state != .stopping else { return }
+        if slot.state == .preparing {
+            prepareTasks[serial]?.cancel()
+            return
+        }
         Log.info("\(serial): stopping (\(reason))")
         slots[serial]?.state = .stopping
         slots[serial]?.stateSince = now()
@@ -589,6 +663,43 @@ public actor Broker {
         missedTicks[serial] = nil
         startShutdown(serial: serial, generation: slot.generation, pid: slot.pid)
         changed()
+    }
+
+    private func waitForStops(of model: String) async throws {
+        let pending: [Task<Void, Never>] = slots.values
+            .filter { $0.model == model && $0.state == .stopping }
+            .compactMap { shutdownTasks[$0.serial] }
+        for task in pending { await task.value }
+        try Task.checkCancellation()
+    }
+
+    private func prepareFinished(serial: String, generation: Int, avd: String, conn: UUID, sink: AsyncStream<Event>.Continuation, outcome: PrepareOutcome) {
+        guard slots[serial]?.generation == generation else { return }
+        slots[serial] = nil
+        prepareTasks[serial] = nil
+        prepareConns[conn] = nil
+        switch outcome {
+        case .cancelled:
+            Log.info("\(serial): prepare of \(avd) cancelled")
+            sink.yield(.failure("prepare of \(avd) cancelled"))
+        case let .failed(message): sink.yield(.failure(message))
+        case .saved: sink.yield(joinPool(avd))
+        }
+        schedule()
+    }
+
+    private func joinPool(_ avd: String) -> Event {
+        let entry: PoolEntry = .init(name: avd, maxInstances: 2)
+        do {
+            if config.entry(for: avd) == nil {
+                try Config.appendPoolEntry(entry, at: configURL)
+                config.pool.append(entry)
+                backend.poolChanged(config.pool)
+            }
+        } catch {
+            return .failure("saved snapshot but could not add \(avd) to the pool: \(error)")
+        }
+        return .ok("saved snapshot '\(config.snapshotName)' for \(avd)")
     }
 
     private func removeSlot(serial: String, generation: Int) {

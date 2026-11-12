@@ -28,6 +28,10 @@ final class Client: Sendable {
         log.events.withLock { $0.compactMap { if case let .ok(notice) = $0 { notice } else { nil } } }
     }
 
+    var progress: [String] {
+        log.events.withLock { $0.compactMap { if case let .progress(line) = $0 { line } else { nil } } }
+    }
+
     var lastPosition: Int? {
         log.events.withLock { $0.compactMap { if case let .queued(position) = $0 { position } else { nil } }.last }
     }

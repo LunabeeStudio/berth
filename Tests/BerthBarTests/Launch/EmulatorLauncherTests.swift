@@ -49,4 +49,28 @@ struct EmulatorLauncherTests {
         #expect(launcher.error?.contains("not leased") == true)
         #expect(actions.releases == ["emulator-5554"])
     }
+
+    @Test
+    func `prepare sends the request with the settle time`() async {
+        let actions: StubActions = .init(failure: nil)
+        let launcher: EmulatorLauncher = .init(actions: actions)
+
+        await launcher.prepare(avd: "Fresh").value
+
+        #expect(actions.prepares == [PrepareRequest(avd: "Fresh", settle: 20)])
+        #expect(launcher.error == nil)
+    }
+
+    @Test
+    func `a failed prepare sets the error and the next one clears it`() async {
+        let actions: StubActions = .init(failure: "snapshot save failed")
+        let launcher: EmulatorLauncher = .init(actions: actions)
+
+        await launcher.prepare(avd: "Fresh").value
+        #expect(launcher.error?.contains("snapshot save failed") == true)
+
+        actions.failure = nil
+        await launcher.prepare(avd: "Fresh").value
+        #expect(launcher.error == nil)
+    }
 }

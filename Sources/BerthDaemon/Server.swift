@@ -62,6 +62,8 @@ struct Server {
         switch request {
         case let .claim(claim):
             await broker.claim(claim, conn: conn, sink: sink)
+        case let .prepare(prepare):
+            await broker.prepare(prepare, conn: conn, sink: sink)
         case let .ack(lease):
             await broker.acknowledge(lease: lease, conn: conn)
         case let .release(target):

@@ -78,6 +78,7 @@ struct StatusRenderer {
         case .leased: "36"
         case .resetting: "35"
         case .stopping: "90"
+        case .preparing: "34"
         }
     }
 

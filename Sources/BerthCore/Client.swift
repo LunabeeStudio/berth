@@ -109,11 +109,33 @@ public enum DaemonClient {
                     throw ClientError.rejected(message)
                 case let .ok(notice):
                     onNotice(notice)
-                case .state:
+                case .state, .progress:
                     continue
                 }
             }
             throw session.didTimeOut ? ClientError.timedOut : ClientError.connectionClosed
+        }
+    }
+
+    /// Holds the connection open for the whole prepare; closing it cancels the prepare.
+    public static func prepare(_ request: PrepareRequest, autoSpawn: Bool = true, onProgress: (String) -> Void = { _ in }) async throws -> String {
+        try await withSession(autoSpawn: autoSpawn) { session in
+            try await session.send(.prepare(request))
+            while let event = try await session.next() {
+                if let message = try prepareOutcome(of: event, onProgress: onProgress) { return message }
+            }
+            throw ClientError.connectionClosed
+        }
+    }
+
+    static func prepareOutcome(of event: Event, onProgress: (String) -> Void) throws -> String? {
+        switch event {
+        case let .progress(line):
+            onProgress(line)
+            return nil
+        case let .ok(message): return message
+        case let .failure(message): throw ClientError.rejected(message)
+        default: return nil
         }
     }
 

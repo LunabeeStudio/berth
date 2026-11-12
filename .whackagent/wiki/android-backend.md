@@ -21,8 +21,8 @@
 ## adb server pid
 `AdbServerPid.sample()` (BerthDaemon/Adb): `/usr/sbin/lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, port `ANDROID_ADB_SERVER_PORT` else 5037, timeout 5 s → first pid or nil. Read-only: never `start-server`/`kill-server`. Feeds broker restart watch ([[broker]]).
 
-## Prepare (`berth prepare <avd>`, CLI-side)
-Refuses if AVD running (daemon slot or `adb emu avd name`). Cold boot non-read-only (`-no-snapshot-load -no-snapshot-save`), animations off, wake + dismiss keyguard, settle N s, `emu avd snapshot save berth-clean`, kill. ≈ 30 s. Snapshot dir `~/.android/avd/<path>/snapshots/berth-clean` (~4 GB).
+## Prepare (daemon-side, BERTH-16)
+`AVDPreparer` (BerthDaemon/Prepare, internal) behind `AVDPreparing` protocol injected in `Broker` (tests: `FakePreparer`). Sequence: cold boot headless non-read-only (`-no-snapshot-load -no-snapshot-save`, `-port`), log `<logs>/prepare-<avd>.log`, wait ready, animations off, wake + dismiss keyguard, settle N s (`--settle`, bar 20), `emu avd snapshot save berth-clean` (180 s, OK/KO), shutdown. ≈ 30 s + boot. Progress lines → `.progress` events. Cancel / failure → shutdown in detached task (runs even when cancelled). `liveSerials()` asks AndroidBackend directly: outside-berth check + port choice see Android emulators even with iOS-only pool. Snapshot dir `~/.android/avd/<path>/snapshots/berth-clean` (~4 GB). Broker rules → [[broker]].
 
 ## AVD dirs
-`<avd>.ini` `path=` in `$ANDROID_AVD_HOME` → `$ANDROID_USER_HOME/avd` → `~/.android/avd`. AVD name ≠ dir name (Emu_2 → Pixel_10_Pro_2.avd).
+`AVDCatalog` (BerthCore/Android, shared by daemon, CLI, bar): `list(sdkRoot:)` (`emulator -list-avds`), `directory(of:)`, `hasSnapshot(_:model:)`, `avds(config:)` → `[AVD{name, prepared}]`. `<avd>.ini` `path=` in `$ANDROID_AVD_HOME` → `$ANDROID_USER_HOME/avd` → `~/.android/avd`. AVD name ≠ dir name (Emu_2 → Pixel_10_Pro_2.avd). Emulator binary = `Config.emulatorPath`.

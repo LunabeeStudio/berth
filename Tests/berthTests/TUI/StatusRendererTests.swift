@@ -30,6 +30,19 @@ struct StatusRendererTests {
     }
 
     @Test
+    func `a preparing slot shows serial, model and state with no owner, label or ttl`() throws {
+        let slot: Slot = .mock(model: "Fresh", state: .preparing, stateSince: Self.now.addingTimeInterval(-65))
+        let renderer: StatusRenderer = .init(snapshot: .mock(slots: [slot], generatedAt: Self.now), now: Self.now, colors: false)
+
+        let line: String = try #require(renderer.lines(selected: nil).first { $0.hasPrefix("  emulator-5554") })
+
+        #expect(line.contains("Fresh"))
+        #expect(line.contains("preparing"))
+        #expect(line.contains("1:05"))
+        #expect(line.filter { $0 == "—" }.count == 3)
+    }
+
+    @Test
     func `device column shows the numbered name`() throws {
         let slot: Slot = .mock(model: "Pixel_10_Pro", instance: 2)
         let renderer: StatusRenderer = .init(snapshot: .mock(slots: [slot], generatedAt: Self.now), now: Self.now, colors: false)

@@ -70,6 +70,7 @@ struct StatusPanelRenderTests {
         named name: String,
         appearance: NSAppearance.Name = .aqua,
         mirror: MirrorController = .init(),
+        avdList: AVDList = .init(load: { [] }),
         autoUpdate: AutoUpdateSetting? = nil
     ) throws -> NSBitmapImageRep {
         let model: StatusModel = .init(state: state, now: now)
@@ -79,7 +80,7 @@ struct StatusPanelRenderTests {
             environment: [:]
         )
         let setting: AutoUpdateSetting = try autoUpdate ?? Self.setting(autoUpdate: true)
-        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, autoUpdate: setting, launcher: .init(), mirror: mirror))
+        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, autoUpdate: setting, launcher: .init(), avdList: avdList, mirror: mirror))
         host.appearance = NSAppearance(named: appearance)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
@@ -188,5 +189,21 @@ struct StatusPanelRenderTests {
 
         Self.expectPanelSized(try Self.render(Self.mirrorable(), named: "live-mirror-caption", mirror: mirror))
         #expect(mirror.caption == "scrcpy not found: brew install scrcpy")
+    }
+
+    @Test(arguments: [(NSAppearance.Name.aqua, "live-preparing"), (.darkAqua, "live-preparing-dark")])
+    func `a preparing row renders in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        let preparing: Slot = .mock(serial: "emulator-5554", model: "Pixel_Fresh", state: .preparing, stateSince: Self.now.addingTimeInterval(-42))
+        let state: StatusState = .live(.mock(slots: [preparing], generatedAt: Self.now))
+        Self.expectPanelSized(try Self.render(state, named: name, appearance: appearance))
+    }
+
+    @Test
+    func `the launch and prepare menus render with disk AVDs`() async throws {
+        let list: AVDList = .init(load: { [AVD(name: "Pixel_9", prepared: true), AVD(name: "Pixel_Fresh", prepared: false)] })
+        await list.refresh()
+        let pool: [PoolEntry] = [.init(name: "Pixel_9", maxInstances: 2)]
+
+        Self.expectPanelSized(try Self.render(.live(.mock(pool: pool, generatedAt: Self.now)), named: "live-avd-menus", avdList: list))
     }
 }

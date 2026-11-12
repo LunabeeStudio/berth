@@ -23,7 +23,7 @@ public enum Daemon {
         signal(SIGHUP, SIG_IGN)
         signal(SIGPIPE, SIG_IGN)
 
-        let config = try await Config.loadOrCreate(discoverModels: AndroidBackend.listAVDs)
+        let config = try await Config.loadOrCreate(discoverModels: AVDCatalog.list)
         let android = AndroidBackend(config: config)
         let simulators = IOSSimulatorBackend(config: config)
         let backend = DeviceRouter(config: config, android: android, ios: simulators)
@@ -33,7 +33,7 @@ public enum Daemon {
         }
         await simulators.provision()
 
-        let broker: Broker = .init(config: config, backend: backend, store: StateStore(url: Paths.state), adbServerPid: AdbServerPid.sample)
+        let broker: Broker = .init(config: config, backend: backend, preparer: AVDPreparer(backend: android, config: config), store: StateStore(url: Paths.state), adbServerPid: AdbServerPid.sample)
         await broker.restore()
 
         let executable: String = LaunchAgent.currentExecutablePath()

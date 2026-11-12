@@ -11,13 +11,15 @@ struct Harness {
     let adbPid: AdbPidBox = .init()
     let broker: Broker
 
-    init(maxRunning: Int = 2, pool: [PoolEntry] = [PoolEntry(name: "Pixel", maxInstances: 2)], idle: Int = 900, store: StateStore? = nil) {
+    init(maxRunning: Int = 2, pool: [PoolEntry] = [PoolEntry(name: "Pixel", maxInstances: 2)], idle: Int = 900, store: StateStore? = nil, preparer: FakePreparer? = nil, configURL: URL = FileManager.default.temporaryDirectory.appending(path: "berth-harness-\(UUID().uuidString).json")) {
         let clock = clock
         let owners = owners
         let adbPid: AdbPidBox = adbPid
         broker = Broker(
             config: Config(maxRunning: maxRunning, idleShutdownSeconds: idle, defaultTTLSeconds: 3600, pool: pool),
             backend: backend,
+            preparer: preparer,
+            configURL: configURL,
             store: store,
             now: { clock.now },
             ownerAlive: { owners.isAlive($0) },

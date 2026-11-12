@@ -27,17 +27,9 @@ public final class AndroidBackend: DeviceBackend {
     public init(config: Config) {
         let sdk = config.resolvedSDKRoot
         adb = "\(sdk)/platform-tools/adb"
-        emulator = "\(sdk)/emulator/emulator"
+        emulator = config.emulatorPath
         snapshotName = config.snapshotName
         bootTimeout = .seconds(config.bootTimeoutSeconds)
-    }
-
-    public static func listAVDs(sdkRoot: String) async -> [String] {
-        guard let result = try? await Shell.run("\(sdkRoot)/emulator/emulator", ["-list-avds"]) else { return [] }
-        return result.stdout
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && !$0.contains(" ") && !$0.contains("|") }
     }
 
     public static func port(of serial: String) -> Int? {
@@ -122,22 +114,6 @@ public final class AndroidBackend: DeviceBackend {
     }
 
     public func hasCleanSnapshot(model: String) -> Bool {
-        FileManager.default.fileExists(atPath: Self.avdDirectory(model: model).appending(path: "snapshots/\(snapshotName)").path)
-    }
-
-    static var avdHome: URL {
-        let env = ProcessInfo.processInfo.environment
-        if let home = env["ANDROID_AVD_HOME"], !home.isEmpty { return URL(fileURLWithPath: home) }
-        if let user = env["ANDROID_USER_HOME"], !user.isEmpty { return URL(fileURLWithPath: user).appending(path: "avd") }
-        return FileManager.default.homeDirectoryForCurrentUser.appending(path: ".android/avd")
-    }
-
-    public static func avdDirectory(model: String) -> URL {
-        let ini = avdHome.appending(path: "\(model).ini")
-        if let contents = try? String(contentsOf: ini, encoding: .utf8),
-           let line = contents.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("path=") }) {
-            return URL(fileURLWithPath: String(line.dropFirst("path=".count)))
-        }
-        return avdHome.appending(path: "\(model).avd")
+        AVDCatalog.hasSnapshot(snapshotName, model: model)
     }
 }
