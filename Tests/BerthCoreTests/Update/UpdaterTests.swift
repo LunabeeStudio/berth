@@ -45,6 +45,19 @@ struct UpdaterTests {
     }
 
     @Test
+    func `homebrew install is refused before any request`() async throws {
+        let fixture: UpdateFixture = try await .init(tag: "v9.9.9")
+        defer { fixture.cleanUp() }
+        let missingFeed: URL = fixture.root.appending(path: "missing.json")
+        let updater: Updater = .init(feed: missingFeed, currentVersion: "0.1.0", executablePath: fixture.berth.path, isHomebrew: true)
+        let release: Release = .init(tagName: "v9.9.9", assets: [])
+
+        await #expect(throws: UpdateError.homebrew) { try await updater.check() }
+        await #expect(throws: UpdateError.homebrew) { try await updater.install(release) }
+        #expect(try fixture.read(fixture.berth) == "old berth")
+    }
+
+    @Test
     func `install replaces berth and the berth-bar beside it`() async throws {
         let fixture: UpdateFixture = try await .init(tag: "v0.2.0")
         defer { fixture.cleanUp() }

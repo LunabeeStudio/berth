@@ -8,23 +8,27 @@ public struct Updater: UpdateSource {
     private let feed: URL
     private let currentVersion: String
     private let executablePath: String
+    private let isHomebrew: Bool
 
     public init(
         feed: URL = Updater.feedFromEnvironment(),
         currentVersion: String = BerthVersion.current,
-        executablePath: String = LaunchAgent.currentExecutablePath()
+        executablePath: String = LaunchAgent.currentExecutablePath(),
+        isHomebrew: Bool = HomebrewInstall.current() != nil
     ) {
         self.feed = feed
         self.currentVersion = currentVersion
         self.executablePath = executablePath
+        self.isHomebrew = isHomebrew
     }
 
     public static func feedFromEnvironment(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
         environment["BERTH_UPDATE_URL"].flatMap { URL(string: $0) } ?? defaultFeed
     }
 
-    /// - Throws: `UpdateError.devBuild` for a `dev` build, `UpdateError.invalidTag` when the feed tag is not `X.Y.Z`, or a network or decoding error.
+    /// - Throws: `UpdateError.homebrew` on a Homebrew install, `UpdateError.devBuild` for a `dev` build, `UpdateError.invalidTag` when the feed tag is not `X.Y.Z`, or a network or decoding error.
     public func check() async throws -> UpdateCheck {
+        guard !isHomebrew else { throw UpdateError.homebrew }
         guard let current = SemanticVersion(currentVersion) else { throw UpdateError.devBuild }
         let data: Data = try await Download.data(from: feed)
         let decoder: JSONDecoder = .init()
@@ -38,6 +42,7 @@ public struct Updater: UpdateSource {
 
     /// Replaces `berth`, and `berth-bar` when it sits beside it, with the release contents. Nothing is replaced on failure.
     public func install(_ release: Release) async throws {
+        guard !isHomebrew else { throw UpdateError.homebrew }
         try await Installer(executablePath: executablePath).install(release)
     }
 }

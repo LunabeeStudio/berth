@@ -43,7 +43,7 @@ struct UpdateFixture {
     }
 
     func updater(current: String) -> Updater {
-        .init(feed: feed, currentVersion: current, executablePath: berth.path)
+        .init(feed: feed, currentVersion: current, executablePath: berth.path, isHomebrew: false)
     }
 
     func read(_ url: URL) throws -> String {

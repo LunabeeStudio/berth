@@ -5,6 +5,7 @@ import Observation
 @Observable
 @MainActor
 final class AutoUpdateSetting {
+    let isManagedByHomebrew: Bool
     private(set) var isAvailable: Bool
 
     @ObservationIgnored private let configURL: URL
@@ -13,7 +14,7 @@ final class AutoUpdateSetting {
     var isEnabled: Bool {
         get {
             access(keyPath: \.isEnabled)
-            return stored
+            return stored && !isManagedByHomebrew
         }
         set {
             withMutation(keyPath: \.isEnabled) {
@@ -25,8 +26,9 @@ final class AutoUpdateSetting {
         }
     }
 
-    init(configURL: URL = Paths.config) {
+    init(configURL: URL = Paths.config, isManagedByHomebrew: Bool = HomebrewInstall.current() != nil) {
         self.configURL = configURL
+        self.isManagedByHomebrew = isManagedByHomebrew
         stored = true
         isAvailable = false
         read()
@@ -41,7 +43,7 @@ final class AutoUpdateSetting {
     private func read() {
         if let config = try? Config.load(from: configURL) {
             stored = config.autoUpdate
-            isAvailable = true
+            isAvailable = !isManagedByHomebrew
         } else {
             stored = true
             isAvailable = false

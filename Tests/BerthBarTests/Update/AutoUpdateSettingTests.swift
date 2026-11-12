@@ -97,4 +97,21 @@ struct AutoUpdateSettingTests {
 
         #expect(!setting.isEnabled)
     }
+
+    @Test
+    func `homebrew reads unchecked, unavailable, and a toggle writes nothing`() throws {
+        let url: URL = Self.temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Config(autoUpdate: true).save(to: url)
+        let before: Data = try Data(contentsOf: url)
+        let setting: AutoUpdateSetting = .init(configURL: url, isManagedByHomebrew: true)
+
+        setting.isEnabled = false
+        setting.isEnabled = true
+
+        #expect(setting.isManagedByHomebrew)
+        #expect(!setting.isAvailable)
+        #expect(!setting.isEnabled)
+        #expect(try Data(contentsOf: url) == before)
+    }
 }
