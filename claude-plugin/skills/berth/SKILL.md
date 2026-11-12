@@ -11,7 +11,7 @@ never start or kill emulators yourself, and never run `adb` without a target ser
 Preferred — claim, run, release in one command (the emulator is released even if the command fails):
 
 ```bash
-berth run --label "<short task name>" --timeout 110 -- ./gradlew connectedDebugAndroidTest
+berth run --label "<ticket key or short task name>" --timeout 110 -- ./gradlew connectedDebugAndroidTest
 ```
 
 `ANDROID_SERIAL` is set for the command, so `adb`, Gradle and the `android` CLI target the claimed emulator.
@@ -19,13 +19,14 @@ berth run --label "<short task name>" --timeout 110 -- ./gradlew connectedDebugA
 For several steps on the same emulator:
 
 ```bash
-SERIAL=$(berth claim --label "<short task name>" --timeout 110)   # exit 2 = none free yet, retry
+SERIAL=$(berth claim --label "<ticket key or short task name>" --timeout 110)   # exit 2 = none free yet, retry
 ./gradlew assembleDebug
 adb -s "$SERIAL" install -r app/build/outputs/apk/debug/app-debug.apk
 ANDROID_SERIAL="$SERIAL" ./gradlew connectedDebugAndroidTest
 berth release "$SERIAL"                                          # always release when done
 ```
 
+- `--label` names your lease in `berth status` and the menu bar. Working on a ticket: use its key exactly as the board writes it (`RM-57`, not `rm57`). Otherwise a short task name.
 - Shell commands time out after ~2 min: keep `--timeout 110` and retry on exit code 2, or run the claim in the background.
 - Install with `adb -s "$SERIAL" install -r`, never with Gradle `install…` tasks: ddmlib can restart the shared adb server and drop every agent's emulator.
 - A released emulator is wiped back to a clean snapshot; nothing you install survives.
@@ -40,13 +41,13 @@ Simulators are shared with other agents running in parallel. Never boot, erase o
 Preferred:
 
 ```bash
-berth run --ios --label "<short task name>" --timeout 110 -- sh -c 'xcodebuild -scheme App -destination "id=$SIMULATOR_UDID" test'
+berth run --ios --label "<ticket key or short task name>" --timeout 110 -- sh -c 'xcodebuild -scheme App -destination "id=$SIMULATOR_UDID" test'
 ```
 
 For several steps on the same simulator:
 
 ```bash
-UDID=$(berth claim --ios --label "<short task name>" --timeout 110)   # exit 2 = none free, retry
+UDID=$(berth claim --ios --label "<ticket key or short task name>" --timeout 110)   # exit 2 = none free, retry
 xcrun simctl install "$UDID" App.app
 xcrun simctl launch "$UDID" com.example.app
 berth release "$UDID"                                                # always release
@@ -60,7 +61,7 @@ berth release "$UDID"                                                # always re
 Login, sign-in, 2FA, captcha, or anything you cannot automate: ask the user to do it on the device.
 
 ```bash
-SERIAL=$(berth claim --label "<short task name>" --timeout 110)   # not `berth run`: it releases the device when its command ends
+SERIAL=$(berth claim --label "<ticket key or short task name>" --timeout 110)   # not `berth run`: it releases the device when its command ends
 berth mirror "$SERIAL"                                           # opens a window on the user's screen; use the UDID for a simulator
 ```
 
