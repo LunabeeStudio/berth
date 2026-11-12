@@ -1,4 +1,5 @@
 import Darwin
+import Foundation
 
 public struct ProcessDetails: Sendable {
     public var pid: Int32
@@ -42,13 +43,30 @@ public enum ProcessInspector {
 
     /// Versioned installs such as `~/.local/share/claude/versions/2.1.299` name the binary after its version.
     static func displayName(_ details: ProcessDetails) -> String {
-        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
-        guard proc_pidpath(details.pid, &buffer, UInt32(buffer.count)) > 0 else { return details.name }
+        guard let path = executablePath(of: details.pid) else { return details.name }
         let isVersion: (String) -> Bool = { $0.allSatisfy { $0.isNumber || $0 == "." } }
-        let path = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         let components = path.split(separator: "/").map(String.init)
         guard let last = components.last, isVersion(last) else { return details.name }
         return components.reversed().first { !isVersion($0) && $0 != "versions" } ?? details.name
+    }
+
+    static func executablePath(of pid: Int32) -> String? {
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    }
+
+    public static func pids(running executable: String) -> [Int32] {
+        let target: String = URL(fileURLWithPath: executable).resolvingSymlinksInPath().path
+        let capacity: Int32 = proc_listpids(UInt32(PROC_UID_ONLY), getuid(), nil, 0)
+        guard capacity > 0 else { return [] }
+        var pids: [Int32] = .init(repeating: 0, count: Int(capacity) / MemoryLayout<Int32>.stride)
+        let bytes: Int32 = proc_listpids(UInt32(PROC_UID_ONLY), getuid(), &pids, capacity)
+        guard bytes > 0 else { return [] }
+        let own: Int32 = getpid()
+        return pids.prefix(Int(bytes) / MemoryLayout<Int32>.stride).filter { pid in
+            pid > 0 && pid != own && executablePath(of: pid).map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path } == target
+        }
     }
 
     static let transparentProcesses: Set<String> = [

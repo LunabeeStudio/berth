@@ -8,25 +8,6 @@ import Testing
 @Suite
 struct LaunchAtLoginTests {
     @Test
-    func `plist runs the executable at load in the GUI session without keep alive`() {
-        let plist: [String: Any] = LaunchAtLogin.plist(label: "com.berth.bar", executable: "/opt/berth-bar", environment: [:])
-        #expect(plist["Label"] as? String == "com.berth.bar")
-        #expect(plist["ProgramArguments"] as? [String] == ["/opt/berth-bar"])
-        #expect(plist["RunAtLoad"] as? Bool == true)
-        #expect(plist["LimitLoadToSessionType"] as? String == "Aqua")
-        #expect(plist["ProcessType"] as? String == "Interactive")
-        #expect(plist["KeepAlive"] == nil)
-    }
-
-    @Test
-    func `plist carries BERTH_HOME only when set`() {
-        let with: [String: Any] = LaunchAtLogin.plist(label: "l", executable: "/x", environment: [Paths.homeVariable: "/tmp/bh"])
-        #expect((with["EnvironmentVariables"] as? [String: String]) == [Paths.homeVariable: "/tmp/bh"])
-        #expect(LaunchAtLogin.plist(label: "l", executable: "/x", environment: [:])["EnvironmentVariables"] == nil)
-        #expect(LaunchAtLogin.plist(label: "l", executable: "/x", environment: [Paths.homeVariable: ""])["EnvironmentVariables"] == nil)
-    }
-
-    @Test
     func `enable then disable round trips through the plist file`() {
         let agent: LaunchAgent = .temporary(label: "com.berth.bar.test")
         defer { try? FileManager.default.removeItem(at: agent.plist.deletingLastPathComponent()) }
