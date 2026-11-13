@@ -11,7 +11,7 @@ variables PLANE_* (`provision` writes them); the Plane API key from env PLANE_AP
 
 States: todo → grilling (claim) → grilled (spec pushed) → coding (claim) → review (PR opened) → done (PR merged),
 plus canceled. Claims are git refs refs/lb-claims/<key>/<phase> on the GitHub repo: atomic, one holder. Priority =
-card order. Sprint = a parent card labeled lb-sprint plus a cycle of the same name; milestone = a module;
+card order. Sprint = a parent card labeled lb-sprint; milestone = a module;
 dependency = a "blocked by" relation. whackagent (rlatapy-luna/whackagent) runs its Plane board on this script.
 
 Exit codes: 0 ok · 1 error · 2 usage · 3 claim taken · 4 wrong state for the operation.
@@ -197,6 +197,14 @@ PLANE_MIN_GAP = 1e-6
 PLANE_MIN_STEP = 1.0
 # Milestone = module. Module statuses that mean closed (the others: backlog, planned, in-progress, paused = open).
 PLANE_CLOSED_MODULE = ("completed", "cancelled")
+# Project features (flag on the project), all off in a new project but pages. Milestones are modules: provision turns
+# them on in any project, and guest access (guests see every work item, not only their own), Lunabee's default for
+# client boards. Views and intake only in one it creates, the team's choice otherwise. Cycles off in one it creates, even
+# if Plane's default turns them on: a sprint is its parent card alone. Work items have no switch on CE.
+PLANE_FEATURES = {"modules": "module_view", "guests": "guest_view_all_features"}
+PLANE_NEW_PROJECT_FEATURES = {**PLANE_FEATURES, "views": "issue_views_view", "intake": "intake_view"}
+PLANE_NEW_PROJECT_OFF = {"cycles": "cycle_view"}
+PLANE_NAME_FORBIDDEN = r"[&+,:;$^}{*=?@#|'<>.()%!-]"  # Plane's FORBIDDEN_IDENTIFIER_CHARS_PATTERN, for names too
 
 
 def plane_call(url, method, path, body=None, missing=()):
@@ -495,12 +503,13 @@ def text_of(markup):
     return html.unescape(re.sub(r"<[^>]+>", "", text))
 
 
-def ensure_plane_states(url, base, names, prune, adopt=None):
+def ensure_plane_states(url, base, names, prune, adopt=None, fresh=False):
     """Make the project carry the seven states (six contract states + canceled) in their Plane groups, in board
     order, Todo the default. Adopts a state by name (`names` overrides, else default name, then Plane's seed
     alias), creates the missing ones. `adopt` ({state: id}, a board set up before, e.g. by whackagent) wins over
     names. Never renames or deletes a state on its own: extra columns stay and are reported; `prune` names extras
-    to delete, and one still holding cards stays (Plane refuses). Returns ({state: id}, report)."""
+    to delete, and one still holding cards stays (Plane refuses). `fresh` (a project provision --create made) deletes
+    every extra: Plane's seed columns (Backlog, In Progress), empty unless a card landed there since. Returns ({state: id}, report)."""
     path = f"{base}/states/"
     have = plane_all(url, path)
     by_name = {s["name"]: s for s in have}
@@ -538,7 +547,7 @@ def ensure_plane_states(url, base, names, prune, adopt=None):
     ours = {current[i]["name"] for i in ids.values()}
     if named & ours:
         raise Failure(f"--prune-status names a state column: {sorted(named & ours)}", EXIT_USAGE)
-    doomed = [s for s in extras if s["name"] in named]
+    doomed = [s for s in extras if fresh or s["name"] in named]
     for state in doomed:
         plane_api(url, "DELETE", f"{path}{state['id']}/", missing=(400,))  # 400: not empty, Plane keeps it
     left = {s["id"] for s in plane_all(url, path)} if doomed else set()
@@ -610,9 +619,9 @@ def ticket_id(text):
 class Board:
     """Plane CE project: ticket = work item, id = its key "CUM-12", state = Plane state (ids in PLANE_STATES, plus
     Canceled), priority order = sort_order, excluded = label lb-ignore, blocked by = relation blocked_by, sprint =
-    parent work item labeled lb-sprint (the truth) mirrored by a cycle of the same name (Plane's sprint view),
-    milestone = module (one per ticket, the board enforces it). Pull request = work-item link (the hooks add it). Account = the Plane user owning the API key (shown by display name,
-    compared by id), not the GitHub login that writes claim refs, branches and PRs."""
+    parent work item labeled lb-sprint, milestone = module (one per ticket, the board enforces it). Pull request =
+    work-item link (the hooks add it). Account = the Plane user owning the API key (shown by display name, compared by
+    id), not the GitHub login that writes claim refs, branches and PRs."""
 
     def __init__(self, config):
         self.config = config
@@ -621,7 +630,6 @@ class Board:
         self.members = None
         self.module_rows = None  # modules (milestones) of the project, read once per run
         self.module_items = None  # module id → ids of its work items, read once per run
-        self.cycle_items = None  # cycle id → (sprint name, ids of its work items), read once per run
 
     @classmethod
     def settings(cls, repo, variables):
@@ -1012,7 +1020,7 @@ class Board:
         if target and item_id not in self.module_members().get(target["id"], ()):
             self.api("POST", f"{base}/modules/{target['id']}/module-issues/", {"issues": [item_id]})
 
-    # ------------------------------------------------ sprints (parent work item + cycle)
+    # ------------------------------------------------ sprints (parent work item)
 
     def sprint_label(self):
         label = self.config["label_ids"].get(SPRINT_LABEL)
@@ -1034,45 +1042,12 @@ class Board:
         return self.by_id[parent]
 
     def sprint_of(self, item):
-        """Sprint = kebab-case name of the lb-sprint parent. The parent is the truth, the cycle mirrors it."""
+        """Sprint = kebab-case name of the lb-sprint parent."""
         parent = self.parent_of(item)
         return sprint_name(parent["name"]) if parent and self.is_root(parent) else None
 
     def sprint_roots(self, name):
         return [i for i in self.board_items() if self.is_root(i) and sprint_name(i["name"]) == name]
-
-    def find_cycle(self, name):
-        cycles = plane_all(self.config["plane_url"], f"{self.base()}/cycles/")
-        return next((c["id"] for c in cycles if sprint_name(c["name"]) == name), None)
-
-    def sprint_cycle(self, name):
-        """Id of cycle <name>, Plane's view of the sprint, created on first use. No dates: Plane takes both or
-        none, and a dateless (draft) cycle never ends, so it always takes cards."""
-        found = self.find_cycle(name)
-        if found:
-            return found
-        return self.api("POST", f"{self.base()}/cycles/", {"name": name, "project_id": self.config["project_id"]})["id"]
-
-    def cycle_members(self):
-        """{cycle id: (sprint name, work item ids)}, read once per run: one call per cycle holding cards, in parallel.
-        No work item field names its cycle."""
-        if self.cycle_items is None:
-            url = self.config["plane_url"]
-            held = [c for c in plane_all(url, f"{self.base()}/cycles/") if c.get("total_issues", 1)]
-            ids = lambda c: {i["id"] for i in plane_all(url, f"{self.base()}/cycles/{c['id']}/cycle-issues/?fields=id")}
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-                self.cycle_items = {c["id"]: (sprint_name(c["name"]), members) for c, members in zip(held, pool.map(ids, held))}
-        return self.cycle_items
-
-    def stray_sprint(self, number, open_sprints=None):
-        """Open sprint whose cycle holds the card while its parent is not that sprint's root: a human dropped it in the
-        cycle by hand. The parent decides, so the card is not in that sprint. <open_sprints>: {name: root key} of the
-        open sprints when the caller read the board, else looked up here."""
-        item = self.item(number)
-        name = next((n for n, members in self.cycle_members().values() if item["id"] in members), None)
-        if not name or name == self.sprint_of(item):
-            return None
-        return name if (name in open_sprints if open_sprints is not None else self.open_sprint(name)) else None
 
     def sprint_root(self, name):
         """Sprint <name>'s root work item, created on first use (labeled lb-sprint, in todo). A closed one (sprint
@@ -1083,14 +1058,14 @@ class Board:
             if self.config["state_groups"].get(root["state"]) in PLANE_CLOSED_GROUPS:
                 self.set_state({"number": self.key(root)}, "todo")
             return self.items[self.key(root)]
-        body = "Sprint: its tickets are the children of this card; the cycle of the same name shows them."
+        body = "Sprint: its tickets are the children of this card."
         return self.remember(self.api("POST", f"{self.base()}/work-items/", {
             "name": name, "description_html": plane_html(body), "state": self.config["state_ids"]["todo"],
             "labels": [self.sprint_label()],
         }))
 
     def set_sprint(self, number, sprint):
-        """Make the ticket a child of sprint <sprint>'s root and put it in the sprint's cycle; "" detaches it from both."""
+        """Make the ticket a child of sprint <sprint>'s root; "" detaches it."""
         sprint = sprint_name(sprint)
         item = self.item(number)
         parent = self.parent_of(item)
@@ -1102,19 +1077,13 @@ class Board:
         path = f"{self.base()}/work-items/{item['id']}/"
         if not sprint:
             self.remember(self.api("PATCH", path, {"parent": None}))
-            cycle = self.find_cycle(current)
-            if cycle:
-                self.api("DELETE", f"{self.base()}/cycles/{cycle}/cycle-issues/{item['id']}/", missing=(404,))
             return
         root = self.sprint_root(sprint)
         self.remember(self.api("PATCH", path, {"parent": root["id"]}))
-        # A work item sits in one cycle at most: adding it moves it out of the previous sprint's cycle.
-        self.api("POST", f"{self.base()}/cycles/{self.sprint_cycle(sprint)}/cycle-issues/", {"issues": [item["id"]]})
 
     def split(self, ticket, name):
         """The work item becomes the sprint's root: labeled lb-sprint, so `list`, `get` and claims skip it. Plane has no
-        "off the board": it keeps its column. The sprint's cycle is created now, empty; children join both with
-        create --sprint. Key, history and module stay."""
+        "off the board": it keeps its column. Children join with create --sprint. Key, history and module stay."""
         number = ticket["number"]
         clash = [r for r in self.sprint_roots(name) if self.key(r) != number]
         if clash:
@@ -1124,8 +1093,7 @@ class Board:
         labels = list(item.get("labels") or [])
         if label not in labels:  # Plane replaces the label list whole
             self.remember(self.api("PATCH", f"{self.base()}/work-items/{item['id']}/", {"labels": labels + [label]}))
-        self.sprint_cycle(name)
-        self.comment(number, f"🌳 **split** — sprint `{name}`: its tickets are the children of this card, in cycle `{name}`")
+        self.comment(number, f"🌳 **split** — sprint `{name}`: its tickets are the children of this card")
 
     def open_sprint(self, name):
         """Key of sprint <name>'s root while it is open (not in Done or Canceled), else None."""
@@ -1146,7 +1114,7 @@ class Board:
         return all(self.config["state_groups"].get(i["state"]) in PLANE_CLOSED_GROUPS for i in children)
 
     def close_sprint(self, root, why):
-        """Sprint landed: its root to Done (priority kept), 🏁 comment. The cycle stays as Plane's record of it."""
+        """Sprint landed: its root to Done (priority kept), 🏁 comment."""
         self.set_state({"number": root}, "done")
         self.comment(root, f"🏁 **sprint landed** — {why}")
 
@@ -1186,14 +1154,32 @@ class Board:
         url, slug = args.plane_url.rstrip("/"), args.workspace
         projects = plane_all(url, f"workspaces/{slug}/projects/")
         project = next((p for p in projects if args.project in (p["identifier"], p["id"])), None)
+        if project and args.create and project["name"] != args.create:
+            # A rerun adopts the project it created; another team's project with that identifier is not this board.
+            raise Failure(f"project {project['identifier']} already exists, named {project['name']!r} — pick another "
+                          "identifier, or drop --create to adopt it", EXIT_USAGE)
+        created = not project and bool(args.create)
+        if created:
+            # The identifier is the ticket key: the receiver and the hooks match [A-Za-z][A-Za-z0-9]{0,11}-n.
+            if not re.fullmatch(r"[A-Z][A-Z0-9]{0,11}", args.project):
+                raise Failure(f"project identifier {args.project!r}: 1 to 12 capital letters or digits, a letter first", EXIT_USAGE)
+            if re.search(PLANE_NAME_FORBIDDEN, args.create):
+                raise Failure(f"project name {args.create!r}: Plane refuses any of {PLANE_NAME_FORBIDDEN[1:-1]}", EXIT_USAGE)
+            # Plane seeds Backlog, Todo, In Progress, Done, Cancelled; the API key's user becomes its admin.
+            project = plane_api(url, "POST", f"workspaces/{slug}/projects/", {"name": args.create, "identifier": args.project})
         if not project:
             known = ", ".join(p["identifier"] for p in projects) or "none"
-            raise Failure(f"no Plane project {args.project!r} in workspace {slug} (projects: {known}) — create it in Plane first", EXIT_USAGE)
+            raise Failure(f"no Plane project {args.project!r} in workspace {slug} (projects: {known}) — "
+                          "pass --create <name> to create it", EXIT_USAGE)
         base = f"workspaces/{slug}/projects/{project['id']}"
-        # Sprints are cycles, milestones are modules: both are project features, off in a new project.
-        features = [f for f, flag in (("cycles", "cycle_view"), ("modules", "module_view")) if not project.get(flag)]
-        if features:
-            plane_api(url, "PATCH", f"{base}/", {"cycle_view": True, "module_view": True})
+        # --create on a project that exists is a rerun (one cut short after the POST): set it up as new all the same.
+        fresh = bool(args.create)
+        wanted = PLANE_NEW_PROJECT_FEATURES if fresh else PLANE_FEATURES
+        features = [f for f, flag in wanted.items() if not project.get(flag)]
+        off = [flag for flag in PLANE_NEW_PROJECT_OFF.values() if fresh and project.get(flag)]
+        if features or off:
+            # A PATCH, not the POST: only PATCH intake_view=true creates the project's default intake.
+            plane_api(url, "PATCH", f"{base}/", {**{wanted[f]: True for f in features}, **{flag: False for flag in off}})
         names = {}
         for pair in args.state or []:
             state, _, name = pair.partition("=")
@@ -1201,7 +1187,7 @@ class Board:
                 raise Failure(f"unknown state {state!r}, expected one of {list(PLANE_STATES)}", EXIT_USAGE)
             names[state] = name
         adopt = json.loads(args.adopt_states) if args.adopt_states else None
-        state_ids, report = ensure_plane_states(url, base, names, args.prune_status, adopt)
+        state_ids, report = ensure_plane_states(url, base, names, args.prune_status, adopt, fresh=fresh)
         labels_renamed = rename_labels(url, base, args.rename_label or [])
         labels_created = ensure_plane_labels(url, base)
         # A PR based on a ticket branch retargets only when that branch is deleted on merge.
@@ -1222,6 +1208,7 @@ class Board:
             "project_url": f"{url}/{slug}/projects/{project['id']}/issues/",
             "project_key": project["identifier"],
             "project_id": project["id"],
+            "project_created": created,
             "states_created": report["created"],
             "states_updated": report["updated"],
             "states_removed": report["removed"],
@@ -1432,7 +1419,7 @@ def op_get(args):
     ticket["spec"] = next((s[0] for s in (spec_at(config, args.number, sha) for sha in branches.values()) if s), None)
     ticket["linked_prs"] = board.linked_prs(args.number)
     ticket["blocked_by"] = board.blocked_by(args.number)
-    ticket["stray_sprint"] = board.stray_sprint(args.number)
+    ticket["stray_sprint"] = None  # whackagent's `get` contract field: without cycles, a card is never in a sprint by hand
     emit(ticket)
 
 
@@ -2022,19 +2009,15 @@ def board_check(board):
     """Each ticket card in a state but done or canceled, against the repository: `grilling` / `coding` with no claim
     of that phase, a claim with nothing new for PLANE_STALE_AFTER_HOURS, a linked PR merged while none is open and the
     card is not done, `review` with no open PR, an open PR while the card sits in `todo` / `grilled`, `grilled` with no
-    spec on a branch naming it, acceptance criteria in the description while in `todo` (only a pushed spec moves it),
-    in an open sprint's cycle without that sprint's root as parent (dropped there by hand: not in the sprint). Reports
-    only: never writes a state or a comment. Sprint roots, lb-ignore cards and columns outside the six states are
-    skipped."""
+    spec on a branch naming it, acceptance criteria in the description while in `todo` (only a pushed spec moves it).
+    Reports only: never writes a state or a comment. Sprint roots, lb-ignore cards and columns outside the six states
+    are skipped."""
     config = board.config
     states = {i: s for s, i in config["state_ids"].items() if s in STATES}
-    closed = {i for i, group in config["state_groups"].items() if group in PLANE_CLOSED_GROUPS}
     ignore = config["label_ids"].get(IGNORE_LABEL)
-    active, open_sprints = [], {}
+    active = []
     for item in board.board_items():
         if board.is_root(item):
-            if item["state"] not in closed:
-                open_sprints.setdefault(sprint_name(item["name"]), board.key(item))
             continue
         state = states.get(item["state"])
         if state and state != "done" and ignore not in (item.get("labels") or []):
@@ -2087,10 +2070,6 @@ def board_check(board):
             problems["grilled-no-spec"] = f"card in `grilled` but no branch naming {key} holds its spec `{config['specs_path']}/{key}-….md`"
         if state == "todo" and description_spec(board.items[key].get("description_html")):
             problems["spec-todo"] = "the card description holds acceptance criteria but the card sits in `todo`: only a spec file pushed on its branch moves it to `grilled`"
-        stray = board.stray_sprint(key, open_sprints)
-        if stray:
-            root = open_sprints[stray]
-            problems["cycle-no-parent"] = f"the card sits in cycle `{stray}` but its parent is not {root}, the sprint's root, so it is not in sprint `{stray}`: `set-field {key} sprint {stray}` to join, or take it out of the cycle"
         found += [{"ticket": key, "state": state, "kind": kind, "problem": text} for kind, text in problems.items()]
     return {"checked": len(active), "problems": found}
 
@@ -2124,7 +2103,7 @@ def parser():
     s.add_argument("--note", help="more Markdown after the summary")
     s.add_argument("--priority", choices=PRIORITIES)
     s.add_argument("--assignee", help="workspace member display name")
-    s.add_argument("--sprint", help="sprint name: the card becomes a child of its root, in its cycle")
+    s.add_argument("--sprint", help="sprint name: the card becomes a child of its root")
     s.add_argument("--milestone", help='module title (default: highest open one that is not a track, "" = none)')
     s.set_defaults(func=op_create)
 
@@ -2200,10 +2179,11 @@ def parser():
     s = sub.add_parser("check", help="report-only board check: cards against claims, branches, specs and PRs")
     s.set_defaults(func=op_check)
 
-    s = sub.add_parser("provision", help="adopt a Plane project: states, labels, repo variables")
+    s = sub.add_parser("provision", help="adopt or create a Plane project: states, labels, repo variables")
     s.add_argument("--plane-url", required=True, help="Plane server URL")
     s.add_argument("--workspace", required=True, help="workspace slug")
     s.add_argument("--project", required=True, help="project identifier (CUM) or id")
+    s.add_argument("--create", metavar="NAME", help="create the project, named NAME, when no project has this identifier")
     s.add_argument("--state", action="append", metavar="STATE=NAME", help="adopt an existing state for a board state")
     s.add_argument("--prune-status", action="append", metavar="NAME", help="delete this extra state (kept while it holds cards)")
     s.add_argument("--specs-path", default="docs/specs")
