@@ -1,6 +1,6 @@
 # Swift — Architecture (package / non-app)
 
-> whackagent convention module · lens: **structure**. SwiftPM library / CLI / server: module + file-tree rules. Pair with `architecture-global.md` (platform-agnostic principles). Freer than app — not free-for-all.
+> Convention module · lens: **structure**. SwiftPM library / CLI / server: module + file-tree rules. Pair with `architecture-global.md` (platform-agnostic principles). Freer than app — not free-for-all.
 
 No Coordinator-Store mandate here (app-only). Surviving discipline:
 
@@ -44,4 +44,4 @@ Tests/<Target>Tests/              # mirrors Sources/<Target>/
 - `public` intentional and minimal; internals `internal`.
 - Tests mirror source structure.
 
-> **Project override.** This default for non-app Swift. If repo has own structural rules, edit this file in project's conventions dir (`paths.conventions`, default `.whackagent/conventions/`) to match — reviewer read project copy.
+> **Project override.** This default for non-app Swift. If repo has own structural rules, edit this file in project's conventions dir (`paths.conventions`, default `.lunabee/agents/conventions/`) to match — reviewer read project copy.

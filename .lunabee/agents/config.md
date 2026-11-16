@@ -1,29 +1,29 @@
 ---
-# whackagent config — written by /wa-setup, edit freely.
+# Agents config — written by setup, edit freely.
 discussion_language: en        # language Claude talk to you in
 primary_language: swift        # swift | kotlin | typescript | generic → picks convention pack;
                                # other language → generic
 project_kind: cli              # app | web | server | cli | package → picks architecture module
                                # app = mobile/desktop GUI; package = library/SDK
 
-paths:                         # WHERE whackagent keep each file kind. Skills refer as
+paths:                         # WHERE agents keep each file kind. Skills refer as
                                # {backlog} {tasks} {wiki} {reports} {conventions} {worktrees} — never literal path.
                                # Relative path resolve from repo root (sibling repo: ../other/docs).
                                # Config versioned + shared → NEVER user-specific absolute path
                                # (/Users/<name>, /home/<name>, ~): break every other machine.
                                # Team share folder → point at committed, browsable one —
-                               # `docs/wiki` readable on GitHub, `.whackagent/wiki` not.
+                               # `docs/wiki` readable on GitHub, `.lunabee/agents/wiki` not.
                                # Missing key → default below; old config still work.
-  backlog: .whackagent/BACKLOG.md
+  backlog: .lunabee/agents/BACKLOG.md
   tasks: .whackagent/tasks
-  wiki: .whackagent/wiki
-  reports: .whackagent/reports          # run reports — local, gitignored by /wa-setup
-  conventions: .whackagent/conventions  # convention modules copied here by /wa-setup
-  worktrees: ../berth-worktrees  # task worktrees (branch.worktree, /wa-autopilot). <repo> = repo
+  wiki: .lunabee/agents/wiki
+  reports: .lunabee/agents/reports          # run reports — local, gitignored by setup
+  conventions: .lunabee/agents/conventions  # convention modules copied here by setup
+  worktrees: ../berth-worktrees  # task worktrees (branch.worktree, autopilot). <repo> = repo
                                # folder name. Resolve from MAIN checkout root, even when setup run
                                # from worktree — keep relative. MUST sit OUTSIDE repo: nested
                                # checkout get indexed, grepped, globbed by builds.
-                               # `.whackagent/config.md` itself NOT configurable: carry these
+                               # `.lunabee/agents/config.md` itself NOT configurable: carry these
                                # paths, must sit at known spot.
                                # Move path after setup → move files too; no back-fill.
 
@@ -34,10 +34,10 @@ backlog:
                                #   plane  — Lunabee's Plane, run by the lb-board plugin (internal,
                                #     LunabeeStudio/Lunabee-Plane): .lunabee/board/lb-board holds board,
                                #     claims and hooks (Lunabee Plane board App). API key: env PLANE_API_KEY.
-                               #   github, plane: settings in repo variables (wa-backlog provision /
+                               #   github, plane: settings in repo variables (lb-backlog provision /
                                #     /lb-board-setup), not here. Forces branch.per_task: true, branch.base =
                                #     close.target (named branch). Ignores close.strategy for tickets:
-                               #     /wa-validate marks PR ready, /wa-close merges it on your yes.
+                               #     validate step marks PR ready, close step merges it on your yes.
   milestones: []               # OPEN release scopes (iteration, version), OLDEST FIRST. Local provider
                                # only — github read repo milestones. New task join LAST entry →
                                # new work never grow current/past scope. You own list: add entry
@@ -52,30 +52,30 @@ vcs:
 release:
   doc: docs/RELEASING.md       # WHERE release flow written — `path` or `path#Heading`
                                # (docs/RELEASING.md, {wiki}/release.md, CLAUDE.md#Releasing).
-                               # /wa-release follow it step by step, never invent flow.
-                               # Empty → /wa-release search markdown, else interview you + write it.
+                               # release step follow it step by step, never invent flow.
+                               # Empty → release step search markdown, else interview you + write it.
 
 review:
-  when: on_validation          # WHEN wa-verifier run.
-                               #   on_validation — once, at /wa-validate: your green light = feature
+  when: on_validation          # WHEN verifier run.
+                               #   on_validation — once, at validate step: your green light = feature
                                #     match spec, THAT fire review over whole diff (code + every
                                #     feedback round). Coding + feedback stay fast; nothing reviewed
                                #     while still moving.
-                               #   each_round — also after /wa-code and every /wa-feedback fix.
-                               #     Catch drift earlier, cost verifier round each time. /wa-validate
+                               #   each_round — also after code step and every feedback step fix.
+                               #     Catch drift earlier, cost verifier round each time. validate step
                                #     still run final pass.
-                               # Either way no task close unreviewed — /wa-close refuse task
-                               # verifier never saw. /wa-autopilot ignore this key: always run
-                               # /wa-validate itself after green runtime check.
-  inline_micro_fixes: true     # /wa-feedback may apply MICRO-fix itself instead of spawn
+                               # Either way no task close unreviewed — close step refuse task
+                               # verifier never saw. autopilot ignore this key: always run
+                               # validate step itself after green runtime check.
+  inline_micro_fixes: true     # feedback step may apply MICRO-fix itself instead of spawn
                                # implementer (~50k tokens context for one-liner). Bounded: ≤2 files,
                                # ≤~20 lines, no new file/type/folder, no layer or public-API change.
-                               # Bigger or any doubt → wa-implementer.
+                               # Bigger or any doubt → implementer.
                                # false → every change through implementer, any size.
-  autofix: true                # wa-code verify phase re-dispatch implementer until clean
+  autofix: true                # code step verify phase re-dispatch implementer until clean
   public_doc: false            # require doc on public API — flip false per company
   modules: [style.md, elegance.md, testing.md, architecture-global.md, architecture-package.md]
-                               # what single wa-verifier load before judging. Setup write what
+                               # what single verifier load before judging. Setup write what
                                # it actually copied: UI module (swiftui.md, compose.md) only if
                                # project use that toolkit, architecture-package.md for non-app
                                # kinds, single <lang>.md for one-file packs. Paths relative to {conventions}.
@@ -86,15 +86,27 @@ review:
                                # report which ran.
                                # Legacy `categories: {conventions: [...], correctness: []}` read as
                                # union of its lists.
+  focus: []                    # FOCUSED verifiers — topic the single verifier keep missing
+                               # (concurrency, recomposition…): long rulebook dilute attention.
+                               # Each entry = one more verifier, own context, that topic only,
+                               # its own modules only, spawned beside main one ONLY when `when`
+                               # regex match diff's changed lines or file paths. Main one then
+                               # leave topic to it. ~50k tokens per spawn — list only topics
+                               # worth it. Entry:
+                               #   - name: concurrency      # topic = finding tag
+                               #     modules: [skill:lunabee-android:kotlin-concurrency-review]
+                               #     when: 'suspend |Flow\b|launch|Dispatchers|Mutex'
+                               # `modules` resolve like `modules` above (reference/paths.md).
+                               # [] → single verifier, as before.
 
 build:                         # how THIS project build — project win over plugin default
   command: ""                  # e.g. "make build", "./scripts/build.sh", "./gradlew assembleDebug".
                                # Empty → build tool detected in repo: XcodeBuildMCP (Xcode project),
                                # ./gradlew (Gradle), swift build (SwiftPM), package.json scripts,
-                               # cargo, go, dotnet, mvn, make… — see wa-implementer.
+                               # cargo, go, dotnet, mvn, make… — see implementer.
   test_command: ""             # e.g. "make test". Empty → same tool's test task.
 
-tools: []                      # project tools whackagent run — lint, static analysis, format check.
+tools: []                      # project tools agents run — lint, static analysis, format check.
                                # Commands, never hardcoded per language. Each entry:
                                #   - name: detekt
                                #     run: ./gradlew detekt                 # whole project; exit ≠ 0 = fail
@@ -103,7 +115,7 @@ tools: []                      # project tools whackagent run — lint, static a
                                #     when: [code, validation]
                                # when — code: implementer run after build + tests, every brick +
                                #   feedback round; failure in changed file = red build.
-                               #   validation: /wa-validate run before verifier; failures join
+                               #   validation: validate step run before verifier; failures join
                                #   autofix loop as `tool:<name>` findings.
                                # Failure only in untouched file = pre-existing: reported,
                                # never fixed — not task scope.
@@ -111,8 +123,8 @@ tools: []                      # project tools whackagent run — lint, static a
 
 verify:                        # runtime check — implementer drive app it just built
   mode: always                 # WHO exercise app after green build:
-                               #   autopilot — agent drive it in /wa-autopilot only (nobody there
-                               #     to test); attended /wa-code + /wa-feedback stop at build + tests,
+                               #   autopilot — agent drive it in autopilot only (nobody there
+                               #     to test); attended code step + feedback step stop at build + tests,
                                #     YOU validate by testing app. Default for anything runnable.
                                #   always — agent drive it every run, attended or not.
                                #   off — agent never drive it; build + tests whole proof.
@@ -134,14 +146,14 @@ verify:                        # runtime check — implementer drive app it just
 
 commit:
   auto_commit_after_validation: false   # may Claude commit once YOU validate feature?
-                               # (name kept for old configs: gate commit /wa-close make)
+                               # (name kept for old configs: gate commit close step make)
   author_name: ""              # commits use this — never "Claude". Empty (default) → committer's own
   author_email: ""             # `git config user.name` / `user.email` at commit time, never made up.
                                # Config versioned + shared → no personal identity here: teammates'
                                # commits would carry it. Set only for shared identity (team bot).
 
 branch:
-  per_task: true               # /wa-code work on own branch per task, not current one
+  per_task: true               # code step work on own branch per task, not current one
   worktree: true               # with per_task: each task branch in own git worktree
                                #   at {worktrees}/<slug> — main checkout never switch branch, tasks
                                #   open side by side. Cost: cold build per worktree, open IDE there.
@@ -150,53 +162,61 @@ branch:
                                # GitHub provider: named branch, same as close.target
   sprint_prefix: "sprint/"     # task with `sprint:` branch off SPRINT branch, not base:
                                #   sprint/login-refacto ← created from base: on sprint's first task
-                               #   wa/login-apple       ← forked from it, merged back by /wa-close
+                               #   wa/login-apple       ← forked from it, merged back by close step
                                # So sprint task 3 see task 1 work — same screen, no blind conflict.
-                               # Created by first who need it: /wa-code step 0 or /wa-autopilot
+                               # Created by first who need it: code step (step 0) or autopilot
                                # wave setup. Empty string → sprint no branch, tasks use base:.
   tracks: {}                   # long-shot features on own long-lived trunk beside base:
                                #   {server: develop_synchro} — key = milestone title, value = branch.
                                # Task in that milestone fork from + land on that branch instead of
                                # base:/close.target. New tasks never join by default; agent
-                               # suggest, you decide. Rules: wa-board → Tracks. Needs per_task.
+                               # suggest, you decide. Rules: reference/tracks.md. Needs per_task.
                                # You own list. Empty (default) → no track, flow unchanged.
-  checkout_next: true          # after /wa-close commit, hop to next task branch (worktree mode:
+  checkout_next: true          # after close step commit, hop to next task branch (worktree mode:
                                #   create its worktree)
                                # (only when per_task AND commit.auto_commit_after_validation)
+  test_branch: true            # with per_task: ≥2 coded tasks waiting your test on one base
+                               #   (sprint branch or trunk) → merged into LOCAL throwaway branch
+                               #   lb-test/<base> (worktree mode: own worktree; else checked out at end
+                               #   of attended round, clean tree only), so you test them
+                               #   in one launch. Rebuilt after each delivery. Never pushed, never
+                               #   landed; conflicting task skipped. Rules: reference/test-branch.md.
+                               #   false or missing → no test branch, test each task branch.
+                               #   per_task off → ignored (setup writes false then).
 
-close:                         # WHERE work land when /wa-close finish task. Sprint task always
+close:                         # WHERE work land when close step finish task. Sprint task always
                                # merge into sprint branch first — this block say what happen to
                                # branch with nowhere left to go (standalone task, or sprint
                                # branch itself once last task close).
-  strategy: nothing            # nothing — /wa-close stop after commit, branch left alone.
+  strategy: nothing            # nothing — close step stop after commit, branch left alone.
                                #   YOU open PR. Safest, default.
                                # pr     — push branch + PR onto target: ready for review —
                                #   existing draft marked ready, else opened ready. Never merged.
                                #   Sprint task: PR onto sprint branch, no local merge.
-                               #   Outward-facing: /wa-close ALWAYS confirm first, every time.
+                               #   Outward-facing: close step ALWAYS confirm first, every time.
                                # merge  — merge branch into target: locally, no push.
-                               # GitHub provider: ignored for tickets — /wa-validate marks PR ready,
-                               #   /wa-close merges on GitHub (squash) on your yes, every time.
+                               # GitHub provider: ignored for tickets — validate step marks PR ready,
+                               #   close step merges on GitHub (squash) on your yes, every time.
   target: main                 # where pr/merge land. Ignored by `nothing`.
   delete_branch: auto          # auto   — delete only once code live elsewhere (merged into sprint
                                #   branch or target). `pr` and `nothing` keep it:
                                #   PR need branch, so do you.
                                # always — delete after close regardless. Ask first when
                                #   branch unmerged — that throw work away.
-                               # never  — /wa-close never delete branch.
+                               # never  — close step never delete branch.
                                # Slug's worktree (autopilot leftover) removed with it.
 
-pr:                            # HOW every whackagent PR look — ticket draft, /wa-close PR, sprint PR.
-                               # Rules: wa-board → Pull requests. Not release PR: release doc own it.
+pr:                            # HOW every PR agents open look — ticket draft, close step PR, sprint PR.
+                               # Rules: reference/pull-requests.md. Not release PR: release doc own it.
   template: auto               # (key missing → none, old behavior)
                                # auto — repo PR template when present (.github/pull_request_template.md,
                                #   .github/PULL_REQUEST_TEMPLATE/…): sections filled from task file,
                                #   checkboxes ticked only when proved. <path> — that file. none — no template.
-                               # whackagent part (Closes #n, criteria, status) always in own marked block;
+                               # agents part (Closes #n, criteria, status) always in own marked block;
                                # refresh rewrite only that block, human edits stay.
   title: "{title}"             # placeholders {title} {n} (issue number, GitHub) {slug}
                                # e.g. "[#{n}] {title}", "feat: {title}"
-  labels: []                   # added at creation, e.g. [whackagent]. Label missing in repo → skipped.
+  labels: []                   # added at creation, e.g. [agents]. Label missing in repo → skipped.
                                # Plus every PR get ≥1 label from repo's own labels
                                # (best fit: bug, feature, docs, area…) — never created.
   assignees: ["@me"]           # PR assignees at creation, plus @me (always self-assigned)
@@ -206,7 +226,7 @@ pr:                            # HOW every whackagent PR look — ticket draft, 
                                # `path#Heading` (CONTRIBUTING.md#Pull requests). Empty → none.
 
 compress_wiki: true            # caveman-compress config + wiki pages, save re-read tokens
-                               # (at /wa-setup + after every /wa-wiki update; .original backups removed)
+                               # (at setup + after every wiki step update; .original backups removed)
 ---
 
 # Project config
