@@ -86,6 +86,18 @@ review:
                                # report which ran.
                                # Legacy `categories: {conventions: [...], correctness: []}` read as
                                # union of its lists.
+  focus: []                    # FOCUSED verifiers — topic the single verifier keep missing
+                               # (concurrency, recomposition…): long rulebook dilute attention.
+                               # Each entry = one more verifier, own context, that topic only,
+                               # its own modules only, spawned beside main one ONLY when `when`
+                               # regex match diff's changed lines or file paths. Main one then
+                               # leave topic to it. ~50k tokens per spawn — list only topics
+                               # worth it. Entry:
+                               #   - name: concurrency      # topic = finding tag
+                               #     modules: [skill:lunabee-android:kotlin-concurrency-review]
+                               #     when: 'suspend |Flow\b|launch|Dispatchers|Mutex'
+                               # `modules` resolve like `modules` above (reference/paths.md).
+                               # [] → single verifier, as before.
 
 build:                         # how THIS project build — project win over plugin default
   command: ""                  # e.g. "make build", "./scripts/build.sh", "./gradlew assembleDebug".
@@ -163,6 +175,14 @@ branch:
   checkout_next: true          # after close step commit, hop to next task branch (worktree mode:
                                #   create its worktree)
                                # (only when per_task AND commit.auto_commit_after_validation)
+  test_branch: true            # with per_task: ≥2 coded tasks waiting your test on one base
+                               #   (sprint branch or trunk) → merged into LOCAL throwaway branch
+                               #   lb-test/<base> (worktree mode: own worktree; else checked out at end
+                               #   of attended round, clean tree only), so you test them
+                               #   in one launch. Rebuilt after each delivery. Never pushed, never
+                               #   landed; conflicting task skipped. Rules: reference/test-branch.md.
+                               #   false or missing → no test branch, test each task branch.
+                               #   per_task off → ignored (setup writes false then).
 
 close:                         # WHERE work land when close step finish task. Sprint task always
                                # merge into sprint branch first — this block say what happen to

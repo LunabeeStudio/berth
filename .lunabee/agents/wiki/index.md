@@ -9,6 +9,7 @@ Living knowledge base for project. Pages link to each other and to tasks via `[[
 - [[broker]] — slot lifecycle, FIFO scheduling, leases, reaping, platform filter, adb restart watch, prepare, live pool
 - [[claude-code]] — plugin: skill + `berth guard` PreToolUse hook, rules, fail-open
 - [[cli]] — commands, exit codes, owner detection, TUI
+- [[glossary]] — one term per thing across UI, code, tasks, PRs
 - [[ios-backend]] — berth-owned simulators, erase+boot reset, routing
 - [[release]] — tag → GitHub release, version stamping, asset names
 - [[update]] — `berth update`, daemon auto update, same-pid re-exec
