@@ -43,6 +43,7 @@ public actor Broker {
     private var unacknowledged: [UUID: Set<String>] = [:]
     private var externalSerials: Set<String> = []
     private var devices: [PhysicalDevice] = []
+    private var avdNames: [String: String?] = [:]
     private var missedTicks: [String: Int] = [:]
     private var bootFailures: [String: Int] = [:]
     private var brokenUntil: [String: Date] = [:]
@@ -272,7 +273,6 @@ public actor Broker {
         let listing: DeviceListing? = await backend.listing()
         let live: Set<String> = listing?.live ?? []
         externalSerials = live
-        devices = listing?.devices ?? []
         let adopted: [Slot] = saved.filter { live.contains($0.serial) }
         let ordered: [Slot] = adopted.filter { $0.instance != nil } + adopted.filter { $0.instance == nil }.sorted { $0.serial.numericallyPrecedes($1.serial) }
         for var slot in ordered {
@@ -286,7 +286,27 @@ public actor Broker {
                 beginStop(slot.serial, reason: "was \(slot.state.rawValue) when the daemon stopped")
             }
         }
+        devices = await publishedDevices(listing)
         changed()
+    }
+
+    private func publishedDevices(_ listing: DeviceListing?) async -> [PhysicalDevice] {
+        guard let listing else { return devices }
+        let unmanaged: [PhysicalDevice] = listing.emulators
+            .filter { slots[$0.serial] == nil }
+            .sorted { $0.serial.numericallyPrecedes($1.serial) }
+        let serials: Set<String> = .init(unmanaged.map(\.serial))
+        avdNames = avdNames.filter { serials.contains($0.key) }
+        var named: [PhysicalDevice] = []
+        for emulator in unmanaged {
+            if avdNames[emulator.serial] == nil {
+                avdNames[emulator.serial] = .some(await backend.avdName(serial: emulator.serial))
+            }
+            var device: PhysicalDevice = emulator
+            device.model = avdNames[emulator.serial].flatMap { $0 } ?? emulator.model
+            named.append(device)
+        }
+        return listing.devices + named
     }
 
     public func reap() async {
@@ -295,8 +315,9 @@ public actor Broker {
         let live: Set<String>? = listing?.live
         let current = now()
 
-        if let listing, listing.devices != devices {
-            devices = listing.devices
+        let published: [PhysicalDevice] = await publishedDevices(listing)
+        if published != devices {
+            devices = published
             changed()
         }
         if let live {

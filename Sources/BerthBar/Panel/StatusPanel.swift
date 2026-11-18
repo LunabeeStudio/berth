@@ -57,7 +57,7 @@ struct StatusPanel: View {
             Text("none connected").foregroundStyle(.secondary)
         }
         ForEach(snapshot.devices) { device in
-            DeviceRow(device: device, mirror: mirror)
+            DeviceRow(device: device, launcher: launcher, mirror: mirror)
         }
         Text("Queue").font(.subheadline.bold())
         if snapshot.queue.isEmpty {

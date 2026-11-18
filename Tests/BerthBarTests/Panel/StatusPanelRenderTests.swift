@@ -62,7 +62,9 @@ struct StatusPanelRenderTests {
         let phone: PhysicalDevice = .mock()
         let locked: PhysicalDevice = .mock(serial: "adb-9A2B3C4D5E._adb-tls-connect._tcp", model: nil, state: .unauthorized)
         let wifi: PhysicalDevice = .mock(serial: "192.168.100.200:5555", model: "Pixel_Fold")
-        return .live(.mock(generatedAt: now, devices: [phone, locked, wifi]))
+        let emulator: PhysicalDevice = .mock(serial: "emulator-5554", model: "Pixel_9")
+        let booting: PhysicalDevice = .mock(serial: "emulator-5556", model: "sdk_gphone64_arm64", state: .offline)
+        return .live(.mock(generatedAt: now, devices: [phone, locked, wifi, emulator, booting]))
     }
 
     private static func render(

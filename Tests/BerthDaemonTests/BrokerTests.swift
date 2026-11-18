@@ -200,4 +200,100 @@ import Testing
 
         #expect(await harness.broker.snapshot().devices.isEmpty)
     }
+
+    @Test
+    func `an unmanaged emulator is published after phones under its avd name`() async {
+        let harness: Harness = .init()
+        let phone: PhysicalDevice = .mock()
+        harness.backend.attach([phone])
+        harness.backend.attachEmulators(
+            [.mock(serial: "emulator-5556", model: "sdk_gphone64_arm64"), .mock(serial: "emulator-5554", model: "sdk_gphone64_arm64")],
+            avdNames: ["emulator-5554": "Pixel_9"]
+        )
+
+        await harness.broker.reap()
+
+        let devices: [PhysicalDevice] = await harness.broker.snapshot().devices
+        #expect(devices.map(\.serial) == [phone.serial, "emulator-5554", "emulator-5556"])
+        #expect(devices.map(\.model) == [phone.model, "Pixel_9", "sdk_gphone64_arm64"])
+    }
+
+    @Test
+    func `an emulator without a model or avd name is published nameless`() async {
+        let harness: Harness = .init()
+        harness.backend.attachEmulators([.mock(serial: "emulator-5554", model: nil)])
+
+        await harness.broker.reap()
+
+        #expect(await harness.broker.snapshot().devices.map(\.model) == [nil])
+    }
+
+    @Test
+    func `an unmanaged emulator never becomes a slot a grant or a running count`() async throws {
+        let harness: Harness = .init(maxRunning: 1)
+        harness.backend.attachEmulators([.mock(serial: "emulator-5554", model: "sdk")])
+        harness.backend.setLive(["emulator-5554"])
+        await harness.broker.reap()
+
+        let client: Client = await harness.claim()
+        try await eventually { client.grant != nil }
+
+        let snapshot: StateSnapshot = await harness.broker.snapshot()
+        #expect(client.grant?.serial == "emulator-5556")
+        #expect(snapshot.slots.map(\.serial) == ["emulator-5556"])
+        #expect(snapshot.devices.map(\.serial) == ["emulator-5554"])
+        #expect(!harness.backend.shutdowns.contains("emulator-5554"))
+    }
+
+    @Test
+    func `a managed emulator is never published whatever its slot state`() async throws {
+        let harness: Harness = .init(maxRunning: 2)
+        harness.backend.holdLaunches(true)
+        let booting: Client = await harness.claim(pid: 1)
+        try await eventually { await harness.slots().first?.state == .booting }
+        harness.backend.attachEmulators([.mock(serial: "emulator-5554", model: "sdk", state: .offline)])
+        await harness.broker.reap()
+        #expect(await harness.broker.snapshot().devices.isEmpty)
+
+        harness.backend.holdLaunches(false)
+        try await eventually { booting.grant != nil }
+        await harness.broker.reap()
+        #expect(await harness.broker.snapshot().devices.isEmpty)
+
+        harness.backend.holdShutdowns(true)
+        _ = await harness.broker.stop("emulator-5554")
+        await harness.broker.reap()
+        #expect(await harness.slots().first?.state == .stopping)
+        #expect(await harness.broker.snapshot().devices.isEmpty)
+        harness.backend.holdShutdowns(false)
+    }
+
+    @Test
+    func `an unmanaged emulator leaves the snapshot when it stops`() async {
+        let harness: Harness = .init()
+        harness.backend.attachEmulators([.mock(serial: "emulator-5554", model: "sdk")])
+        await harness.broker.reap()
+
+        harness.backend.attachEmulators([])
+        await harness.broker.reap()
+
+        #expect(await harness.broker.snapshot().devices.isEmpty)
+    }
+
+    @Test
+    func `the avd name is asked once per serial while it stays listed`() async {
+        let harness: Harness = .init()
+        harness.backend.attachEmulators([.mock(serial: "emulator-5554", model: "sdk")], avdNames: ["emulator-5554": "Pixel_9"])
+
+        await harness.broker.reap()
+        await harness.broker.reap()
+        await harness.broker.reap()
+        #expect(harness.backend.avdNameCalls == ["emulator-5554"])
+
+        harness.backend.attachEmulators([])
+        await harness.broker.reap()
+        harness.backend.attachEmulators([.mock(serial: "emulator-5554", model: "sdk")], avdNames: ["emulator-5554": "Pixel_9"])
+        await harness.broker.reap()
+        #expect(harness.backend.avdNameCalls == ["emulator-5554", "emulator-5554"])
+    }
 }
