@@ -1,6 +1,6 @@
 ---
 issue: BERTH-19
-phase: in-progress
+phase: validated
 type: feature
 wiki: [architecture]
 note:
@@ -53,3 +53,23 @@ Ticket idea (2026-11-18): "Add right click menu with same stuff as ~/dev/switchb
 - `Quit berth-bar` quits berth-bar and stops the scrcpy mirrors it started, like the panel's Quit button. The daemon keeps running.
 - The status item exposes a "Show Menu" accessibility action that opens the menu.
 - Unit tests on the menu builder cover the item order, the disabled version item, the checkmark for both launch at login states, and the Quit key equivalent. `swift build` has no new warning, and `swift test` is green.
+
+## Implementation
+
+One brick. `Sources/BerthBar/MenuBar/StatusMenu.swift` is new: a pure builder that turns the version string, the launch at login state and an action target into the `NSMenu`, with the repository URL constant beside it. `StatusItemController` now sends its action on `.leftMouseUp` and `.rightMouseUp`, routes a right click or a Control-click to the menu and any other click to the panel toggle, closes an open panel first, refreshes `LaunchAtLogin` before building the menu, attaches the menu for one click, and exposes the "Show Menu" accessibility action. The open repository, toggle launch at login and quit actions live in the controller. `Tests/BerthBarTests/MenuBar/StatusMenuTests.swift` is new, with six tests. `swift build` finished with 0 warnings, and `swift test` passed in all four test targets (63, 135, 76 and 85 tests, 359 in total).
+
+## Review
+
+### validation (autopilot) — 2026-11-18
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict clean after 2 rounds.
+
+- Round 1, 1 finding, fixed: 🟡 `StatusMenu.repository` repeated the `URL` type name. It now reads `URL = .init(string: …)!`, like `Updater.defaultFeed`.
+- Round 2: clean. Nothing withdrawn or disputed.
+
+## Verification
+
+- ✅ Unit tests cover the item order with separators, the disabled version item (`berth dev` for a debug build), the checkmark for both launch at login states, the `q` key equivalent on Quit, an action and the target on each enabled item, and the repository URL.
+- ✅ `swift build` shows no warning, also after touching the MenuBar sources to force a recompile.
+- ✅ A debug `berth-bar` launched from this worktree with `BERTH_HOME=/tmp/bb19` stayed alive for 5 seconds, and `desk-state` before and after showed the same frontmost app (iTerm2) and the same cursor. It was stopped by pid.
+- Not run by an agent, because `CLAUDE.md#Desktop proofs` forbids synthetic clicks: a human must check that a right click and a Control-click open the menu, that a plain left click opens the panel before and after the menu was used, that a right click with the panel open closes it, that Open on GitHub opens the browser, that Launch at Login toggles `~/Library/LaunchAgents/com.berth.bar.plist` and its checkmark, that Quit berth-bar stops the mirrors and leaves the daemon running, and that VoiceOver lists "Show Menu".

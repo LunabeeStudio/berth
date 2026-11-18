@@ -1,4 +1,5 @@
 import AppKit
+import BerthCore
 import Observation
 import SwiftUI
 
@@ -28,12 +29,60 @@ final class StatusItemController: NSObject {
         popover.contentViewController = content
         popover.behavior = .transient
         item.button?.target = self
-        item.button?.action = #selector(toggle)
+        item.button?.action = #selector(click)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         item.button?.imagePosition = .imageLeading
+        // VoiceOver presses the button without a right click, so the menu needs its own action.
+        item.button?.setAccessibilityCustomActions([.init(name: "Show Menu", target: self, selector: #selector(showMenuForAccessibility))])
         refresh()
     }
 
-    @objc private func toggle() {
+    @objc private func click() {
+        let event: NSEvent? = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            showMenu()
+        } else {
+            toggle()
+        }
+    }
+
+    private func showMenu() {
+        guard let button = item.button else { return }
+        if popover.isShown { popover.performClose(nil) }
+        launchAtLogin.refresh()
+        let menu: NSMenu = StatusMenu.make(
+            version: BerthVersion.current,
+            launchAtLogin: launchAtLogin.isEnabled,
+            target: self,
+            openRepository: #selector(openRepository),
+            toggleLaunchAtLogin: #selector(toggleLaunchAtLogin),
+            quit: #selector(quit)
+        )
+        // Attached for one click, so the system places the menu and highlights the button. The click returns once the menu
+        // closes, and a left click then opens the popover again.
+        item.menu = menu
+        button.performClick(nil)
+        item.menu = nil
+    }
+
+    @objc private func showMenuForAccessibility() -> Bool {
+        showMenu()
+        return true
+    }
+
+    @objc private func openRepository() {
+        NSWorkspace.shared.open(StatusMenu.repository)
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        launchAtLogin.isEnabled.toggle()
+    }
+
+    @objc private func quit() {
+        NSApp.terminate(nil)
+    }
+
+    private func toggle() {
         guard let button = item.button else { return }
         if popover.isShown {
             popover.performClose(nil)
