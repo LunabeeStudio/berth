@@ -4,17 +4,40 @@ import NIOCore
 import NIOPosix
 
 struct Server {
+    private static let rebindDelay: Duration = .seconds(1)
+
     let broker: Broker
     let onShutdown: @Sendable () -> Void
 
-    func run(socketPath: String) async throws {
-        let server = try await ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
+    static func bind(socketPath: String) async throws -> NIOAsyncChannel<NIOAsyncChannel<ByteBuffer, ByteBuffer>, Never> {
+        try await ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
+            .serverChannelInitializer { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try channel.pipeline.syncOperations.addHandler(AcceptErrorFilter())
+                }
+            }
             .bind(unixDomainSocketPath: socketPath, cleanupExistingSocketFile: true) { channel in
                 channel.eventLoop.makeCompletedFuture {
                     try channel.pipeline.syncOperations.addHandler(ByteToMessageHandler(NewlineFrameDecoder()))
                     return try NIOAsyncChannel<ByteBuffer, ByteBuffer>(wrappingChannelSynchronously: channel)
                 }
             }
+    }
+
+    func run(socketPath: String) async throws {
+        while true {
+            do {
+                try await serve(socketPath: socketPath)
+                Log.info("listening socket closed, listening again")
+            } catch {
+                Log.info("server stopped: \(error), listening again")
+            }
+            try await Task.sleep(for: Self.rebindDelay)
+        }
+    }
+
+    private func serve(socketPath: String) async throws {
+        let server: NIOAsyncChannel<NIOAsyncChannel<ByteBuffer, ByteBuffer>, Never> = try await Self.bind(socketPath: socketPath)
         chmod(socketPath, 0o600)
         Log.info("listening on \(socketPath)")
         try await withThrowingDiscardingTaskGroup { group in
@@ -23,6 +46,7 @@ struct Server {
                     group.addTask { await handle(connection) }
                 }
             }
+            group.cancelAll()
         }
     }
 

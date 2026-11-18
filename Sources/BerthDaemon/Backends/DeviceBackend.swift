@@ -1,4 +1,5 @@
 import BerthCore
+import Foundation
 
 public protocol DeviceBackend: Sendable {
     /// Non-nil when no device can ever be provided for `model`, so claims must fail instead of waiting.
@@ -13,12 +14,15 @@ public protocol DeviceBackend: Sendable {
     func listing() async -> DeviceListing?
     func avdName(serial: String) async -> String?
     func isProcessAlive(_ pid: Int32) -> Bool
+    /// Whether `pid` is an emulator process that started before `date`: a process that started later cannot be the one the pid was saved for.
+    func isEmulatorProcess(_ pid: Int32, startedBefore date: Date) -> Bool
     func poolChanged(_ pool: [PoolEntry])
 }
 
 public extension DeviceBackend {
     func unavailableReason(model: String) -> String? { nil }
     func poolChanged(_ pool: [PoolEntry]) {}
+    func isEmulatorProcess(_ pid: Int32, startedBefore date: Date) -> Bool { false }
     func avdName(serial: String) async -> String? { nil }
     func listing() async -> DeviceListing? { await liveSerials().map { DeviceListing(live: $0) } }
 }
