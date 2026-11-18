@@ -23,6 +23,8 @@ final class FakeBackend: DeviceBackend {
         var failReset = false
         var failListing: Bool = false
         var deadPids: Set<Int32> = []
+        var foreignPids: Set<Int32> = []
+        var startTimes: [Int32: Date] = [:]
         var holdResets = false
         var holdLaunches: Bool = false
         var holdShutdowns: Bool = false
@@ -49,6 +51,8 @@ final class FakeBackend: DeviceBackend {
         }
     }
     func failListings() { state.withLock { $0.failListing = true } }
+    func start(pid: Int32, at date: Date) { state.withLock { $0.startTimes[pid] = date } }
+    func markForeign(pid: Int32) { state.withLock { _ = $0.foreignPids.insert(pid) } }
     func kill(pid: Int32) { state.withLock { _ = $0.deadPids.insert(pid) } }
     func failResets() { state.withLock { $0.failReset = true } }
     func vanish(_ serial: String) { state.withLock { _ = $0.live.remove(serial) } }
@@ -103,4 +107,5 @@ final class FakeBackend: DeviceBackend {
         }
     }
     func isProcessAlive(_ pid: Int32) -> Bool { state.withLock { !$0.deadPids.contains(pid) } }
+    func isEmulatorProcess(_ pid: Int32, startedBefore date: Date) -> Bool { state.withLock { !$0.deadPids.contains(pid) && !$0.foreignPids.contains(pid) && ($0.startTimes[pid] ?? .distantPast) < date } }
 }

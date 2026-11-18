@@ -108,6 +108,12 @@ public final class AndroidBackend: DeviceBackend {
         ProcessInspector.isProcessAlive(pid)
     }
 
+    public func isEmulatorProcess(_ pid: Int32, startedBefore date: Date) -> Bool {
+        guard let details = ProcessInspector.details(of: pid) else { return false }
+        let isEmulator: Bool = details.name.hasPrefix("qemu-system") || details.name.hasPrefix("emulator")
+        return isEmulator && details.startTime < date.timeIntervalSince1970
+    }
+
     public func avdName(serial: String) async -> String? {
         guard let result = try? await Shell.run(adb, ["-s", serial, "emu", "avd", "name"], timeout: .seconds(10)), result.succeeded else { return nil }
         return result.stdout.split(whereSeparator: \.isNewline).first.map { $0.trimmingCharacters(in: .whitespaces) }

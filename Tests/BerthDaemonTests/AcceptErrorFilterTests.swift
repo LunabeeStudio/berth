@@ -13,7 +13,7 @@ struct AcceptErrorFilterTests {
         defer { try? FileManager.default.removeItem(atPath: path) }
         let server: NIOAsyncChannel<NIOAsyncChannel<ByteBuffer, ByteBuffer>, Never> = try await Server.bind(socketPath: path)
 
-        server.channel.pipeline.fireErrorCaught(NIOFcntlFailedError())
+        try await server.channel.eventLoop.submit { server.channel.pipeline.fireErrorCaught(NIOFcntlFailedError()) }.get()
         let client: any Channel = try await ClientBootstrap(group: MultiThreadedEventLoopGroup.singleton)
             .connect(unixDomainSocketPath: path)
             .get()

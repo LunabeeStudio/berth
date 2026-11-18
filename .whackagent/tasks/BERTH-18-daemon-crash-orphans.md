@@ -1,6 +1,6 @@
 ---
 issue: BERTH-18
-phase: review
+phase: validated
 type: bug
 wiki: [architecture, broker]
 note: Incident 2026-11-18 09:41 UTC, ~/Library/Logs/berth/daemon.log. Daemon 907 died, daemons 43074 then 48890 adopted nothing; emulator-5554..5560 kept running untracked.
@@ -20,7 +20,7 @@ What happened on 2026-11-18 (from `daemon.log`, times UTC):
 Grilled unattended by `/wa-autopilot` on 2026-11-18. Decisions tagged `(autopilot assumption)` are for the user to confirm or correct.
 
 - A failed accept is logged (`accept failed: <error>`) and the daemon keeps serving, with its in-memory state. Preferred way: a handler in the server channel pipeline drops per-connection accept errors before they reach the async accept sequence. As a safety net, if the accept sequence still ends with an error, the server binds the socket again and keeps going, with a short delay between attempts so a socket that can never be bound does not spin. (autopilot assumption)
-- `restore()` never takes an unknown device list for an empty one. It retries the listing a few times (3 attempts, 2 s apart). When the listing is still unknown, it adopts every saved slot whose emulator process is still alive (`isProcessAlive(pid)`), and keeps a saved slot without a pid; the reap tick then drops slots that vanished, as it already does. (autopilot assumption)
+- `restore()` never takes an unknown device list for an empty one. It retries the listing a few times (3 attempts, 500 ms apart, so the daemon binds well before the client gives up after 5 s). When the listing is still unknown, it adopts every saved slot whose pid is still an emulator process (`isEmulatorProcess`: process name `qemu-system*` / `emulator*`, started before a bound: the slot's own `stateSince` for `free`, `leased` and `resetting` slots, which entered that state while the old emulator was running, so a recycled pid started later is rejected; for other slots (`booting`, `preparing`, `stopping`), whose `stateSince` can precede the recorded pid, the bound is the start of the restore, so only the process name guards), and keeps a saved slot without a pid; the reap tick then drops slots that vanished, as it already does. (autopilot assumption)
 - `restore()` logs every saved slot it does not adopt, with the reason (`<serial>: not adopted (<reason>)`), so the next incident can be read from `daemon.log`. (autopilot assumption)
 - Out of scope: cleaning up the four emulators that are running now (the user decides, by hand), and listing unmanaged emulators (BERTH-17). Out of scope too: the auto-spawn burst itself; the lock file already lets only one daemon run at a time. (autopilot assumption)
 
@@ -38,6 +38,8 @@ Grilled unattended by `/wa-autopilot` on 2026-11-18. Decisions tagged `(autopilo
 - `Sources/BerthDaemon/AcceptErrorFilter.swift`: server-channel handler added through `serverChannelInitializer` (in `Server.bind`, shared by the daemon and the test). It swallows only `NIOFcntlFailedError`, the one accept error NIO forwards to the sequence (IOErrors are consumed by NIO's `AcceptBackoffHandler`, which the filter must not starve of them). It logs `accept failed: <error>` at most once per second, with the count of errors held back since the last line.
 - `Server.run` loops: when the accept sequence ends (error or closed socket) it cancels live connections, logs `server stopped: ...` and binds again after 1 s, same broker. Only cancellation ends it.
 - `Broker.restore`: listing retried 3 times (`listingRetryDelay`, default 2 s, injected as `.zero` in `Harness`). Listing known: adopt listed slots as before. Listing unknown: adopt slots whose pid is alive or without pid. Every dropped slot logs `<serial>: not adopted (<reason>)`.
+- Validate round 1: unknown-listing adoption now uses `DeviceBackend.isEmulatorProcess(_:startedBefore:)` (Android: `ProcessInspector.details`; router forwards; default falls back to `isProcessAlive`) with `startedBefore` = `now()` at the start of `restore()`; log reason `device list unknown and process <pid> is not a running emulator`. Retry delay default 500 ms. The accept test fires the error on the event loop before connecting. `BrokerRestoreTests` helpers moved below the tests; new test `a failed listing does not adopt a slot whose pid now belongs to another process` (FakeBackend `markForeign`).
+- Validate round 2: the start-time bound is the slot's `stateSince` for `free`/`leased`/`resetting` (a reset keeps the old pid until `resetFinished`, and that process started before the reset began), and the restore start for `booting`/`preparing` (pid recorded after launch, so `stateSince` would wrongly reject it; name-only guard there, accepted residual risk). `DeviceBackend.isEmulatorProcess` default is now `false`. FakeBackend keeps a start time per pid; new test for a recycled emulator process.
 - Style pass: `Server.bind` moved above `run`; explicit types on the server and iterator declarations.
 - Tests: `AcceptErrorFilterTests` (real `Server.bind` on a temp unix socket: error fired on the server pipeline, then a client connection is still accepted; test deps now include NIO, `@testable import NIOPosix` since `NIOFcntlFailedError.init` is internal), `BrokerRestoreTests`; `FakeBackend` gained `failListings()` and `kill(pid:)`.
 
@@ -58,10 +60,27 @@ Round 1, 7 findings, all fixed by autofix:
 Round 2, 2 findings (🟡 style: `Server.bind` member order, explicit types on the server and iterator declarations). Fixed.
 Round 3: clean. Withdrawn: 0. Disputed: 0. Not covered by a test: the rebind path itself.
 
+### validation — 2026-11-18 (after feedback round 1: rebase on main)
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict after 3 rounds: clean.
+
+Round 1, 4 findings, all fixed by autofix:
+- 🟠 [correctness] With an unknown listing, a slot was adopted on `kill(pid, 0)` alone. A recycled pid (after a reboot) could be adopted, then stopped by the idle reap, which SIGKILLs an unrelated process. Fixed: `isEmulatorProcess` checks the process name and start time.
+- [correctness] The 3 × 2 s listing retries delayed the bind past the auto-spawn client's 5 s wait. Fixed: 500 ms apart.
+- [correctness] The filter test fired the error off the event loop, so it could pass without the filter. Fixed: `eventLoop.submit { … }.get()` before connecting; proven to fail with the filter neutered.
+- [style] Restore test helpers sat before the `@Test`s. Fixed.
+
+Round 2, 2 findings (🟡), fixed:
+- [correctness] The start-time bound was the restore start, so it never failed: a recycled pid held by another qemu (the user's own emulator) passed. Fixed: the bound is the slot's `stateSince` for `free`/`leased`/`resetting`.
+- [structure] The protocol default `isEmulatorProcess` ignored its contract. Fixed: it now returns `false`.
+
+Round 3: clean. Withdrawn: 0. Disputed: 0. Residual risk (accepted): `booting`/`preparing`/`stopping` slots are guarded by the process name only. Autofix changed `Broker.restore` and `Backends/*` after the user's test.
+
 ## Verification
 
 - `swift build` green, no warnings; `swift test` all suites pass.
 - Runtime (own daemon, `BERTH_HOME=/tmp/b18`): 32 threads x 400 connect-then-reset clients reproduced the incident error: one rate-limited `accept failed: NIOFcntlFailedError()` line in the daemon log (10854 unlimited lines before the rate limit). Same daemon pid stayed alive, `berth status` answered. Daemon stopped with `kill <pid>`.
+- Validate round 1: build 0 warnings, tests 63+152+76+83 pass; accept test fails 3 of 3 runs with the filter neutered. No runtime re-run (Server untouched).
 - Restore proven by unit tests only (no runtime state.json written, to keep real emulators untouched).
 
 ## Feedback

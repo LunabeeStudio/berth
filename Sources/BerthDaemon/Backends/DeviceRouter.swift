@@ -1,4 +1,5 @@
 import BerthCore
+import Foundation
 import Synchronization
 
 public final class DeviceRouter: DeviceBackend {
@@ -75,5 +76,9 @@ public final class DeviceRouter: DeviceBackend {
 
     public func isProcessAlive(_ pid: Int32) -> Bool {
         android.isProcessAlive(pid)
+    }
+
+    public func isEmulatorProcess(_ pid: Int32, startedBefore date: Date) -> Bool {
+        android.isEmulatorProcess(pid, startedBefore: date)
     }
 }

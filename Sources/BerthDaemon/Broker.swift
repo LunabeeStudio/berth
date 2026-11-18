@@ -66,7 +66,7 @@ public actor Broker {
         now: @escaping @Sendable () -> Date = { Date() },
         ownerAlive: @escaping @Sendable (Owner) -> Bool = ProcessInspector.isAlive,
         adbServerPid: @escaping @Sendable () async -> Int32? = { nil },
-        listingRetryDelay: Duration = .seconds(2)
+        listingRetryDelay: Duration = .milliseconds(500)
     ) {
         self.config = config
         self.backend = backend
@@ -274,10 +274,11 @@ public actor Broker {
 
     public func restore() async {
         let saved = store?.load() ?? []
+        let startedAt: Date = now()
         let listing: DeviceListing? = await listingWithRetry()
         externalSerials = listing?.live ?? []
         let adopted: [Slot] = saved.filter { slot in
-            guard let reason = notAdoptedReason(slot, listing: listing) else { return true }
+            guard let reason = notAdoptedReason(slot, listing: listing, startedAt: startedAt) else { return true }
             Log.info("\(slot.serial): not adopted (\(reason))")
             return false
         }
@@ -324,12 +325,13 @@ public actor Broker {
         return nil
     }
 
-    private func notAdoptedReason(_ slot: Slot, listing: DeviceListing?) -> String? {
+    private func notAdoptedReason(_ slot: Slot, listing: DeviceListing?, startedAt: Date) -> String? {
         if let listing {
             return listing.live.contains(slot.serial) ? nil : "not in the device list"
         }
-        guard let pid = slot.pid, !backend.isProcessAlive(pid) else { return nil }
-        return "device list unknown and process \(pid) is gone"
+        let bound: Date = [.free, .leased, .resetting].contains(slot.state) ? slot.stateSince : startedAt
+        guard let pid = slot.pid, !backend.isEmulatorProcess(pid, startedBefore: bound) else { return nil }
+        return "device list unknown and process \(pid) is not a running emulator"
     }
 
     public func reap() async {
