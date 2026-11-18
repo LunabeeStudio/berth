@@ -176,6 +176,8 @@ socket and logs (keep it short: Unix socket paths are limited to 104 bytes).
 swift build && swift test       # broker logic is tested against a fake backend, no emulator needed
 ```
 
+To try a berth-bar change, `scripts/dev/run-bar.sh` builds `berth-bar` from the checkout and runs it in the foreground, next to the installed one and on the same daemon (`BERTH_HOME` picks another). Ctrl-C quits it and closes its mirrors. Both items look the same in the menu bar. Launch at login and Auto update are shared: toggling them in the dev bar changes the installed one's too (`berth bar install` points the login item back at the installed binary).
+
 Layout: `BerthCore` (model, wire protocol, client, process helpers), `BerthDaemon` (broker actor, NIO server,
 `DeviceBackend`, `AndroidBackend`, `IOSSimulatorBackend` over `simctl`, `DeviceRouter`), `berth` (CLI + TUI). A SwiftUI menu-bar app can reuse `BerthCore`'s client and `watch` stream.
 
