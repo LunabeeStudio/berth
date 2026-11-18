@@ -31,6 +31,7 @@ marketplace_file=".claude-plugin/marketplace.json"
 assets=(berth-macos-arm64.tar.gz berth-macos-arm64.tar.gz.sha256)
 tap_repo="LunabeeStudio/homebrew-tap"
 formula_path="Formula/berth.rb"
+readme_path="README.md"
 render_formula="scripts/release/homebrew/render.sh"
 
 current_step=""
@@ -39,6 +40,7 @@ tag_created=false
 draft_created=false
 published=false
 formula_done=false
+readme_done=false
 archive_sha=""
 bumped=false
 pr_branch=""
@@ -76,6 +78,9 @@ on_error() {
             echo "The Homebrew formula was not updated. Render it and commit it to $tap_repo as $formula_path by hand:" >&2
             echo "  $render_formula $version ${archive_sha:-<sha256 from the release asset ${assets[1]}>}" >&2
             echo "  gh api -X PUT repos/$tap_repo/contents/$formula_path -f message='berth $version' -f content=<base64 of the file> [-f sha=<current file sha>]" >&2
+        fi
+        if ! $readme_done; then
+            echo "The berth version badge in $tap_repo $readme_path was not set to $version. Edit it by hand and push to main." >&2
         fi
         echo "Open the bump PR to $next by hand." >&2
         if [[ -z "$module_kept" ]]; then
@@ -160,25 +165,55 @@ check_tap() {
     push="$(gh api "repos/$tap_repo" --jq .permissions.push 2>&1)" \
         || fail "cannot reach $tap_repo: $push"
     [[ "$push" == "true" ]] || fail "the gh user cannot push to $tap_repo: ask for write access"
+    tap_readme | set_readme_badge > /dev/null
 }
 
-formula_sha() {
+tap_file_sha() {
     local output
-    if output="$(gh api "repos/$tap_repo/contents/$formula_path" --jq .sha 2>&1)"; then
+    if output="$(gh api "repos/$tap_repo/contents/$1" --jq .sha 2>&1)"; then
         echo "$output"
         return 0
     fi
-    [[ "$output" == *"HTTP 404"* ]] || fail "could not read $formula_path in $tap_repo: $output"
+    [[ "$output" == *"HTTP 404"* ]] || fail "could not read $1 in $tap_repo: $output"
+}
+
+tap_readme() {
+    gh api "repos/$tap_repo/contents/$readme_path" --jq .content | base64 -d
+}
+
+# Prints the README read on stdin with the berth version badge set to $version.
+set_readme_badge() {
+    python3 -c '
+import re, sys
+text, count = re.subn(r"(badge/version-)[^-)]+(-blue\)\]\(Formula/berth\.rb\))", rf"\g<1>{sys.argv[1]}\g<2>", sys.stdin.read())
+if count != 1:
+    sys.exit(f"error: expected one berth version badge in {sys.argv[2]}, found {count}")
+sys.stdout.write(text)' "$version" "$tap_repo $readme_path"
+}
+
+put_tap_file() {
+    local path="$1" content="$2" sha
+    sha="$(tap_file_sha "$path")"
+    local fields=(-f "message=berth $version" -f "content=$content")
+    [[ -z "$sha" ]] || fields+=(-f "sha=$sha")
+    gh api -X PUT "repos/$tap_repo/contents/$path" "${fields[@]}" > /dev/null
 }
 
 publish_formula() {
-    local sha content
-    sha="$(formula_sha)"
+    local content
     content="$("$render_formula" "$version" "$archive_sha" | base64)"
-    local fields=(-f "message=berth $version" -f "content=$content")
-    [[ -z "$sha" ]] || fields+=(-f "sha=$sha")
-    gh api -X PUT "repos/$tap_repo/contents/$formula_path" "${fields[@]}" > /dev/null
+    put_tap_file "$formula_path" "$content"
     formula_done=true
+}
+
+publish_readme() {
+    local current updated
+    current="$(tap_readme)"
+    updated="$(set_readme_badge <<< "$current")"
+    if [[ "$updated" != "$current" ]]; then
+        put_tap_file "$readme_path" "$(base64 <<< "$updated")"
+    fi
+    readme_done=true
 }
 
 confirm() {
@@ -256,7 +291,7 @@ Release $tag. Plan:
   6. upload ${assets[0]} and ${assets[1]}
   7. check both assets on the draft
   8. publish $tag as latest
-  9. commit the Homebrew formula $version to $tap_repo ($formula_path)
+  9. commit the Homebrew formula $version to $tap_repo ($formula_path) and set its $readme_path version badge
  10. open a PR bumping plugin versions to $next and merge it
  11. $close_plan
 PLAN
@@ -308,9 +343,10 @@ step "8/11 publishing $tag"
 gh release edit "$tag" --draft=false --latest
 published=true
 
-step "9/11 committing the Homebrew formula to $tap_repo"
+step "9/11 committing the Homebrew formula and README badge to $tap_repo"
 read -r archive_sha _ < "$dist/${assets[1]}"
 publish_formula
+publish_readme
 
 step "10/11 bumping plugin versions to $next"
 version_pr bump "$next" "Bump version to $next for the next release"
