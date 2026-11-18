@@ -1,6 +1,6 @@
 ---
 issue: BERTH-18
-phase: validated
+phase: review
 type: bug
 wiki: [architecture, broker]
 note: Incident 2026-11-18 09:41 UTC, ~/Library/Logs/berth/daemon.log. Daemon 907 died, daemons 43074 then 48890 adopted nothing; emulator-5554..5560 kept running untracked.
@@ -65,3 +65,15 @@ Round 3: clean. Withdrawn: 0. Disputed: 0. Not covered by a test: the rebind pat
 - Restore proven by unit tests only (no runtime state.json written, to keep real emulators untouched).
 
 ## Feedback
+
+### Round 1 — 2026-11-18
+
+Asked: "rebase on main" (BERTH-17 landed in #63).
+Triage: adjustment. Routed `inline`: a mechanical rebase of the ticket range onto `origin/main`.
+Changed (inline, no convention pass; the verifier should judge these hunks harder):
+- `Broker.restore()`: keeps this ticket's `listingWithRetry` + `notAdoptedReason`. Drops this ticket's `devices = listing?.devices ?? []`, because main now sets `devices = await publishedDevices(listing)` after adoption. With an unknown listing, `publishedDevices` keeps the previous list (empty at start).
+- `Broker`: `publishedDevices` (main) and `listingWithRetry` + `notAdoptedReason` (this ticket) placed side by side.
+- `FakeBackend`: both sides' state and helpers kept. `listing()` returns nil when `failListing`, otherwise includes `emulators`. `isProcessAlive` reads `deadPids`.
+Warnings: 0 new. Build ✅, tests ✅ (63 + 151 + 76 + 79→83 after main's kill tests).
+Review: deferred to `/wa-validate`. Verify: no runtime re-run. Only the merge of both sides changed, and the unit tests cover restore and the unmanaged listing.
+
