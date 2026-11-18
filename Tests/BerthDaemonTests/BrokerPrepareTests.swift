@@ -1,4 +1,4 @@
-import BerthCore
+@testable import BerthCore
 import Foundation
 import Testing
 
@@ -57,6 +57,20 @@ struct BrokerPrepareTests {
         let slot: Slot? = await s.h.slots().first
         #expect(slot?.state == .preparing)
         #expect(slot?.model == "Fresh")
+    }
+
+    @Test
+    func `a preparing emulator is never published as unmanaged`() async throws {
+        let s: Setup = try Self.setup()
+        s.preparer.holdPrepares(true)
+        _ = await Self.prepare(s.h, avd: "Fresh")
+        try await eventually { await s.h.slots().first?.state == .preparing }
+        s.h.backend.attachEmulators([.mock(serial: "emulator-5554", model: "sdk", state: .offline)])
+
+        await s.h.broker.reap()
+
+        #expect(await s.h.broker.snapshot().devices.isEmpty)
+        s.preparer.holdPrepares(false)
     }
 
     @Test

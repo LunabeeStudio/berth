@@ -60,11 +60,17 @@ public final class DeviceRouter: DeviceBackend {
             guard let listing = await (platform == .ios ? ios : android).listing() else { return nil }
             merged.live.formUnion(listing.live)
             merged.devices += listing.devices
+            merged.emulators += listing.emulators
         }
         if !platforms.contains(.android), let listing = await android.listing() {
             merged.devices += listing.devices
+            merged.emulators += listing.emulators
         }
         return merged
+    }
+
+    public func avdName(serial: String) async -> String? {
+        await backend(forSerial: serial).avdName(serial: serial)
     }
 
     public func isProcessAlive(_ pid: Int32) -> Bool {

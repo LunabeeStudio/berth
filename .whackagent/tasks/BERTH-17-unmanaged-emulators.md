@@ -1,6 +1,6 @@
 ---
 issue: BERTH-17
-phase:
+phase: validated
 type: feature
 wiki: [broker, architecture, android-backend]
 note: Seen on 2026-11-18 after a daemon crash (BERTH-18): 4 berth emulators kept running untracked, berth showed 1/5 running.
@@ -37,8 +37,30 @@ Grilled unattended by `/wa-autopilot` on 2026-11-18. Decisions tagged `(autopilo
 
 ## Implementation
 
+- `DeviceListing.emulators`: every `emulator-*` entry (serial, `model:`, adb state); `live` stays pool-gated. `DeviceRouter` merges `emulators` from the Android backend whatever the pool.
+- `DeviceBackend.avdName(serial:)` (default nil; Android backend already had it, router forwards by serial shape): the broker asks the backend, no preparer needed.
+- `Broker.publishedDevices`: phones, then unmanaged emulators (listing emulators minus every slot serial, any state) sorted by serial number; `model` = AVD name, else `model:` field, else nil. Name cached per serial in `avdNames` (failures cached too), dropped when the serial leaves the listing. Used by `restore()` (after adoption) and `reap()`.
+- Autofix 1: preparing-slot test, router tests assert `live`, `avdNames` prune uses a serial set.
+- No change to slots, grants, maxRunning, summary, stop, `PhysicalDevice`, `DeviceRow`, `MirrorController`.
+- Tests: listing, router (Android / iOS-only / empty pool), broker (listed, ordering, nameless, never granted, managed in booting/leased/stopping never listed, leaves when gone, avdName once per serial), render fixture `live-devices` (+ dark) holds phones and two emulator rows.
+
 ## Review
 
+### validation (autopilot) — 2026-11-18
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict after 2 rounds: clean.
+
+Round 1, 3 findings (all 🟡), all fixed by autofix:
+- [correctness] No test proved that an emulator in a `preparing` slot stays out of `devices`. Fixed: new case in `BrokerPrepareTests`.
+- [style] The router test name said "live stays pool gated" but nothing asserted `live`. Fixed: both tests set a live serial and assert it.
+- [elegance] The `avdNames` prune used a misleading closure name and a nested `contains`. Fixed: filter on a `Set` of serials.
+
+Round 2: clean. Withdrawn: 0. Disputed: 0.
+
 ## Verification
+
+- `swift build` green, 0 warnings; `swift test` green (63 + 146 + 76 + 79 tests).
+- Own daemon (`BERTH_HOME=/tmp/b17`) with 5 running emulators: `berth status --json` `devices` lists the phone and emulator-5554..5562 named `Pixel_9`; `slots` empty; `berth status` table unchanged (no device rows). Daemon killed by pid; emulators untouched (5 still listed).
+- Panel proof: render PNGs `live-devices.png` / `live-devices-dark.png`.
 
 ## Feedback

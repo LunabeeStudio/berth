@@ -98,4 +98,47 @@ struct DeviceRouterTests {
 
         #expect(listing == DeviceListing())
     }
+
+    @Test
+    func `emulators are listed with an android pool while live stays pool gated`() async {
+        let android: FakeBackend = .init()
+        android.attachEmulators([.mock(serial: "emulator-5554", model: "sdk", state: .device)])
+        android.setLive(["emulator-5554"])
+
+        let listing: DeviceListing? = await router(android: android).listing()
+
+        #expect(listing?.emulators == [.mock(serial: "emulator-5554", model: "sdk", state: .device)])
+        #expect(listing?.live == ["emulator-5554"])
+    }
+
+    @Test
+    func `an ios only pool still lists emulators`() async {
+        let android: FakeBackend = .init()
+        android.attachEmulators([.mock(serial: "emulator-5554", model: "sdk", state: .device)])
+        android.setLive(["emulator-5554"])
+        let config: Config = .init(pool: [PoolEntry(name: "iPhone 17", platform: .ios, maxInstances: 1)])
+
+        let listing: DeviceListing? = await DeviceRouter(config: config, android: android, ios: FakeBackend()).listing()
+
+        #expect(listing?.emulators.map(\.serial) == ["emulator-5554"])
+        #expect(listing?.live == [])
+    }
+
+    @Test
+    func `an empty pool still lists emulators`() async {
+        let android: FakeBackend = .init()
+        android.attachEmulators([.mock(serial: "emulator-5554", model: "sdk", state: .device)])
+
+        let listing: DeviceListing? = await DeviceRouter(config: .init(pool: []), android: android, ios: FakeBackend()).listing()
+
+        #expect(listing?.emulators.map(\.serial) == ["emulator-5554"])
+    }
+
+    @Test
+    func `avd name goes to the android backend for emulator serials`() async {
+        let android: FakeBackend = .init()
+        android.attachEmulators([], avdNames: ["emulator-5554": "Pixel_9"])
+
+        #expect(await router(android: android).avdName(serial: "emulator-5554") == "Pixel_9")
+    }
 }

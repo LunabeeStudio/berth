@@ -57,6 +57,22 @@ struct DeviceListingTests {
     }
 
     @Test
+    func `emulators keep their serial model and adb state`() {
+        let output: String = """
+        List of devices attached
+        emulator-5556          offline transport_id:2
+        emulator-5554          device product:sdk model:sdk_gphone64_arm64 device:emu transport_id:1
+        """
+
+        let listing: DeviceListing = .parse(adbDevices: output)
+
+        #expect(listing.emulators == [
+            PhysicalDevice(serial: "emulator-5556", model: nil, state: .offline),
+            PhysicalDevice(serial: "emulator-5554", model: "sdk_gphone64_arm64", state: .device)
+        ])
+    }
+
+    @Test
     func `header only lists nothing`() {
         #expect(DeviceListing.parse(adbDevices: "List of devices attached\n\n") == DeviceListing())
     }

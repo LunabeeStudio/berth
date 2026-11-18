@@ -11,6 +11,7 @@ public protocol DeviceBackend: Sendable {
     func shutdown(serial: String, pid: Int32?) async
     func liveSerials() async -> Set<String>?
     func listing() async -> DeviceListing?
+    func avdName(serial: String) async -> String?
     func isProcessAlive(_ pid: Int32) -> Bool
     func poolChanged(_ pool: [PoolEntry])
 }
@@ -18,5 +19,6 @@ public protocol DeviceBackend: Sendable {
 public extension DeviceBackend {
     func unavailableReason(model: String) -> String? { nil }
     func poolChanged(_ pool: [PoolEntry]) {}
+    func avdName(serial: String) async -> String? { nil }
     func listing() async -> DeviceListing? { await liveSerials().map { DeviceListing(live: $0) } }
 }

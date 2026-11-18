@@ -16,6 +16,9 @@ final class FakeBackend: DeviceBackend {
     struct State {
         var live: Set<String> = []
         var devices: [PhysicalDevice] = []
+        var emulators: [PhysicalDevice] = []
+        var avdNames: [String: String] = [:]
+        var avdNameCalls: [String] = []
         var failingModels: Set<String> = []
         var failReset = false
         var holdResets = false
@@ -37,12 +40,19 @@ final class FakeBackend: DeviceBackend {
     func holdResets(_ hold: Bool) { state.withLock { $0.holdResets = hold } }
     func isLive(_ serial: String) -> Bool { state.withLock { $0.live.contains(serial) } }
     func attach(_ devices: [PhysicalDevice]) { state.withLock { $0.devices = devices } }
+    func attachEmulators(_ emulators: [PhysicalDevice], avdNames: [String: String] = [:]) {
+        state.withLock {
+            $0.emulators = emulators
+            $0.avdNames = avdNames
+        }
+    }
     func failResets() { state.withLock { $0.failReset = true } }
     func vanish(_ serial: String) { state.withLock { _ = $0.live.remove(serial) } }
     var resets: [String] { state.withLock { $0.resets } }
     var resetWindowed: [Bool] { state.withLock { $0.resetWindowed } }
     var shutdowns: [String] { state.withLock { $0.shutdowns } }
     var launches: [Launch] { state.withLock { $0.launches } }
+    var avdNameCalls: [String] { state.withLock { $0.avdNameCalls } }
 
     func nextSerial(model: String, taken: Set<String>) -> String? {
         if model.hasPrefix("iPhone") {
@@ -81,6 +91,12 @@ final class FakeBackend: DeviceBackend {
     }
 
     func liveSerials() async -> Set<String>? { state.withLock { $0.live } }
-    func listing() async -> DeviceListing? { state.withLock { DeviceListing(live: $0.live, devices: $0.devices) } }
+    func listing() async -> DeviceListing? { state.withLock { DeviceListing(live: $0.live, devices: $0.devices, emulators: $0.emulators) } }
+    func avdName(serial: String) async -> String? {
+        state.withLock {
+            $0.avdNameCalls.append(serial)
+            return $0.avdNames[serial]
+        }
+    }
     func isProcessAlive(_ pid: Int32) -> Bool { true }
 }
