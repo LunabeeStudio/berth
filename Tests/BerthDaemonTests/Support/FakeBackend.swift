@@ -21,6 +21,8 @@ final class FakeBackend: DeviceBackend {
         var avdNameCalls: [String] = []
         var failingModels: Set<String> = []
         var failReset = false
+        var failListing: Bool = false
+        var deadPids: Set<Int32> = []
         var holdResets = false
         var holdLaunches: Bool = false
         var holdShutdowns: Bool = false
@@ -46,6 +48,8 @@ final class FakeBackend: DeviceBackend {
             $0.avdNames = avdNames
         }
     }
+    func failListings() { state.withLock { $0.failListing = true } }
+    func kill(pid: Int32) { state.withLock { _ = $0.deadPids.insert(pid) } }
     func failResets() { state.withLock { $0.failReset = true } }
     func vanish(_ serial: String) { state.withLock { _ = $0.live.remove(serial) } }
     var resets: [String] { state.withLock { $0.resets } }
@@ -91,12 +95,12 @@ final class FakeBackend: DeviceBackend {
     }
 
     func liveSerials() async -> Set<String>? { state.withLock { $0.live } }
-    func listing() async -> DeviceListing? { state.withLock { DeviceListing(live: $0.live, devices: $0.devices, emulators: $0.emulators) } }
+    func listing() async -> DeviceListing? { state.withLock { $0.failListing ? nil : DeviceListing(live: $0.live, devices: $0.devices, emulators: $0.emulators) } }
     func avdName(serial: String) async -> String? {
         state.withLock {
             $0.avdNameCalls.append(serial)
             return $0.avdNames[serial]
         }
     }
-    func isProcessAlive(_ pid: Int32) -> Bool { true }
+    func isProcessAlive(_ pid: Int32) -> Bool { state.withLock { !$0.deadPids.contains(pid) } }
 }

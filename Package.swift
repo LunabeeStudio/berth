@@ -33,6 +33,6 @@ let package = Package(
         .testTarget(name: "berthTests", dependencies: ["berth"]),
         .testTarget(name: "BerthBarTests", dependencies: ["BerthBar", "BerthCore"]),
         .testTarget(name: "BerthCoreTests", dependencies: ["BerthCore"]),
-        .testTarget(name: "BerthDaemonTests", dependencies: ["BerthDaemon", "BerthCore"]),
+        .testTarget(name: "BerthDaemonTests", dependencies: ["BerthDaemon", "BerthCore"] + nio),
     ]
 )

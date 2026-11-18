@@ -61,6 +61,7 @@ Other adb clients (Android Studio, Gradle ddmlib) kill the shared adb server →
 - Not changed: vanished-slot reap (3 missed ticks) during instability.
 
 ## Failure handling
+- **Restore with unknown listing (BERTH-18)**: `restore()` retries `listing()` 3× (`listingRetryDelay`, 2 s; tests `.zero`). Known → adopt listed slots. Still nil → adopt saved slots with live pid or no pid (reap vanish detection drops wrong ones), never take nil as empty, never persist `[]` for it. Every dropped saved slot logs `<serial>: not adopted (<reason>)`.
 - Boot fail ×3 for model → model "broken" 10 min, its waiters failed (any-waiters of same platform failed only if all its models broken or unavailable). Messages name device kind (AVD / simulator).
 - **Orphan race**: stop (`stop-all`, eviction) while boot/reset in flight → task later brings device up for dead slot. `discardOrphan` installs fresh-generation `.stopping` slot + `startShutdown` → serial held until shut down, never one newer slot owns.
 - Reset fail → stop slot (next boot equally clean, see [[android-backend]]).

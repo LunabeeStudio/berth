@@ -27,6 +27,7 @@ public actor Broker {
     static let bootFailuresBeforeBroken = 3
     static let brokenCooldown: TimeInterval = 600
     static let slowTransition: TimeInterval = 60
+    static let restoreListingAttempts: Int = 3
 
     private var config: Config
     private let backend: any DeviceBackend
@@ -36,6 +37,7 @@ public actor Broker {
     private let now: @Sendable () -> Date
     private let ownerAlive: @Sendable (Owner) -> Bool
     private let adbServerPid: @Sendable () async -> Int32?
+    private let listingRetryDelay: Duration
 
     private var slots: [String: Slot] = [:]
     private var waiters: [Waiter] = []
@@ -63,7 +65,8 @@ public actor Broker {
         store: StateStore? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         ownerAlive: @escaping @Sendable (Owner) -> Bool = ProcessInspector.isAlive,
-        adbServerPid: @escaping @Sendable () async -> Int32? = { nil }
+        adbServerPid: @escaping @Sendable () async -> Int32? = { nil },
+        listingRetryDelay: Duration = .seconds(2)
     ) {
         self.config = config
         self.backend = backend
@@ -73,6 +76,7 @@ public actor Broker {
         self.now = now
         self.ownerAlive = ownerAlive
         self.adbServerPid = adbServerPid
+        self.listingRetryDelay = listingRetryDelay
     }
 
     // region Requests
@@ -270,10 +274,13 @@ public actor Broker {
 
     public func restore() async {
         let saved = store?.load() ?? []
-        let listing: DeviceListing? = await backend.listing()
-        let live: Set<String> = listing?.live ?? []
-        externalSerials = live
-        let adopted: [Slot] = saved.filter { live.contains($0.serial) }
+        let listing: DeviceListing? = await listingWithRetry()
+        externalSerials = listing?.live ?? []
+        let adopted: [Slot] = saved.filter { slot in
+            guard let reason = notAdoptedReason(slot, listing: listing) else { return true }
+            Log.info("\(slot.serial): not adopted (\(reason))")
+            return false
+        }
         let ordered: [Slot] = adopted.filter { $0.instance != nil } + adopted.filter { $0.instance == nil }.sorted { $0.serial.numericallyPrecedes($1.serial) }
         for var slot in ordered {
             if slot.state == .preparing { slot.state = .booting }
@@ -307,6 +314,22 @@ public actor Broker {
             named.append(device)
         }
         return listing.devices + named
+    }
+
+    private func listingWithRetry() async -> DeviceListing? {
+        for attempt in 1...Self.restoreListingAttempts {
+            if let listing = await backend.listing() { return listing }
+            if attempt < Self.restoreListingAttempts { try? await Task.sleep(for: listingRetryDelay) }
+        }
+        return nil
+    }
+
+    private func notAdoptedReason(_ slot: Slot, listing: DeviceListing?) -> String? {
+        if let listing {
+            return listing.live.contains(slot.serial) ? nil : "not in the device list"
+        }
+        guard let pid = slot.pid, !backend.isProcessAlive(pid) else { return nil }
+        return "device list unknown and process \(pid) is gone"
     }
 
     public func reap() async {

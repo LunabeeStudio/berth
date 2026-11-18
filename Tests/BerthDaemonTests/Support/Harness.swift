@@ -23,7 +23,8 @@ struct Harness {
             store: store,
             now: { clock.now },
             ownerAlive: { owners.isAlive($0) },
-            adbServerPid: { adbPid.value }
+            adbServerPid: { adbPid.value },
+            listingRetryDelay: .zero
         )
     }
 

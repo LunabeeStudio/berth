@@ -1,6 +1,6 @@
 ---
 issue: BERTH-18
-phase:
+phase: validated
 type: bug
 wiki: [architecture, broker]
 note: Incident 2026-11-18 09:41 UTC, ~/Library/Logs/berth/daemon.log. Daemon 907 died, daemons 43074 then 48890 adopted nothing; emulator-5554..5560 kept running untracked.
@@ -35,8 +35,33 @@ Grilled unattended by `/wa-autopilot` on 2026-11-18. Decisions tagged `(autopilo
 
 ## Implementation
 
+- `Sources/BerthDaemon/AcceptErrorFilter.swift`: server-channel handler added through `serverChannelInitializer` (in `Server.bind`, shared by the daemon and the test). It swallows only `NIOFcntlFailedError`, the one accept error NIO forwards to the sequence (IOErrors are consumed by NIO's `AcceptBackoffHandler`, which the filter must not starve of them). It logs `accept failed: <error>` at most once per second, with the count of errors held back since the last line.
+- `Server.run` loops: when the accept sequence ends (error or closed socket) it cancels live connections, logs `server stopped: ...` and binds again after 1 s, same broker. Only cancellation ends it.
+- `Broker.restore`: listing retried 3 times (`listingRetryDelay`, default 2 s, injected as `.zero` in `Harness`). Listing known: adopt listed slots as before. Listing unknown: adopt slots whose pid is alive or without pid. Every dropped slot logs `<serial>: not adopted (<reason>)`.
+- Style pass: `Server.bind` moved above `run`; explicit types on the server and iterator declarations.
+- Tests: `AcceptErrorFilterTests` (real `Server.bind` on a temp unix socket: error fired on the server pipeline, then a client connection is still accepted; test deps now include NIO, `@testable import NIOPosix` since `NIOFcntlFailedError.init` is internal), `BrokerRestoreTests`; `FakeBackend` gained `failListings()` and `kill(pid:)`.
+
 ## Review
 
+### validation (autopilot) — 2026-11-18
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict after 3 rounds: clean.
+
+Round 1, 7 findings, all fixed by autofix:
+- 🟠 [correctness] The filter also swallowed IOErrors (ECONNABORTED, EMFILE…) ahead of NIO's `AcceptBackoffHandler`. That turned off the 1 s accept backoff, so EMFILE would spin and flood the log. Fixed: only `NIOFcntlFailedError` is swallowed.
+- [correctness] The filter test used its own EmbeddedChannel, not the real server pipeline. Fixed: `Server.bind` is shared, and the test binds a real unix socket.
+- [correctness] When the accept sequence ended normally, the rebind waited forever on a long-lived `watch` connection. Fixed: `group.cancelAll()` after the accept loop.
+- [correctness] Bind failures were logged as `accept failed:`. Fixed: `server stopped: <error>, listening again`.
+- [style] Member order in `AcceptErrorFilter`; explicit types in `Broker` and `FakeBackend`. Fixed.
+- Also changed, not a finding: `accept failed` is logged at most once per second, with a count. A burst used to write 10854 lines.
+
+Round 2, 2 findings (🟡 style: `Server.bind` member order, explicit types on the server and iterator declarations). Fixed.
+Round 3: clean. Withdrawn: 0. Disputed: 0. Not covered by a test: the rebind path itself.
+
 ## Verification
+
+- `swift build` green, no warnings; `swift test` all suites pass.
+- Runtime (own daemon, `BERTH_HOME=/tmp/b18`): 32 threads x 400 connect-then-reset clients reproduced the incident error: one rate-limited `accept failed: NIOFcntlFailedError()` line in the daemon log (10854 unlimited lines before the rate limit). Same daemon pid stayed alive, `berth status` answered. Daemon stopped with `kill <pid>`.
+- Restore proven by unit tests only (no runtime state.json written, to keep real emulators untouched).
 
 ## Feedback
