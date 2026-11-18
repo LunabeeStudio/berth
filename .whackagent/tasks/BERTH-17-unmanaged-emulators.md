@@ -1,6 +1,6 @@
 ---
 issue: BERTH-17
-phase: validated
+phase: review
 type: feature
 wiki: [broker, architecture, android-backend]
 note: Seen on 2026-11-18 after a daemon crash (BERTH-18): 4 berth emulators kept running untracked, berth showed 1/5 running.
@@ -19,12 +19,13 @@ Grilled unattended by `/wa-autopilot` on 2026-11-18. Decisions tagged `(autopilo
 - It is shown exactly like a connected device (BERTH-13): one more row in the berth-bar "Devices" section, in the same `devices` list of the snapshot, with the same columns (serial, name, adb state) and the same mirror button (scrcpy in control mode, only in state `device`). Phones and unmanaged emulators share the section; the `emulator-` serial tells them apart. (autopilot assumption)
 - The name column shows the AVD name (`adb -s <serial> emu avd name`, the call prepare already uses), because the `model:` field of an emulator is a generic image name (`sdk_gphone64_arm64`). The daemon asks once per serial and keeps the answer while the serial stays in the adb list, so a reap tick does not run one more adb call per emulator. When the call fails, the row falls back to the `model:` field, then `—`. (autopilot assumption)
 - Unmanaged emulators are listed whatever the pool holds (Android, iOS-only or empty), like phones. (autopilot assumption)
-- Seen, never managed: berth never adopts, leases, resets, stops or counts an unmanaged emulator (`maxRunning`, the summary line `n/m running`). It may be the device of an agent that still works on it, so handing it to a claim would collide. No stop button: berth never stops an emulator it does not manage. (autopilot assumption)
+- Seen, never managed: berth never adopts, leases, resets, stops or counts an unmanaged emulator (`maxRunning`, the summary line `n/m running`). It may be the device of an agent that still works on it, so handing it to a claim would collide. The daemon never stops it on its own. The user can kill it from its row (feedback round 1, below).
 - `berth status` and `berth top` tables stay as they are, as for phones; `berth status --json` carries the rows in `devices`. (autopilot assumption)
 - The snapshot type keeps its name `PhysicalDevice` and its wire key `devices`: no protocol change, an older berth-bar shows the new rows as devices. (autopilot assumption)
 
 ## Acceptance criteria
 
+- An unmanaged emulator's row has a kill button. A click runs `adb -s <serial> emu kill` from berth-bar, and the row leaves within one reap tick once the emulator is gone. Its tooltip warns that an agent may still use the emulator. Phones and berth's own emulators get no kill button. (feedback round 1)
 - With an emulator running that berth did not start (for example `emulator -avd <name> -no-window` from a terminal), the berth-bar "Devices" section lists it within one reap tick (about 5 s): its serial `emulator-<port>`, its AVD name and its adb state.
 - Its mirror button opens a scrcpy window in control mode when its state is `device`; in another state the row has no button.
 - An emulator that berth manages (any slot state, including `booting`, `preparing` and `stopping`) never appears in "Devices".
@@ -43,6 +44,8 @@ Grilled unattended by `/wa-autopilot` on 2026-11-18. Decisions tagged `(autopilo
 - Autofix 1: preparing-slot test, router tests assert `live`, `avdNames` prune uses a serial set.
 - No change to slots, grants, maxRunning, summary, stop, `PhysicalDevice`, `DeviceRow`, `MirrorController`.
 - Tests: listing, router (Android / iOS-only / empty pool), broker (listed, ordering, nameless, never granted, managed in booting/leased/stopping never listed, leaves when gone, avdName once per serial), render fixture `live-devices` (+ dark) holds phones and two emulator rows.
+
+- Round 1 (kill button): `EmulatorKiller` protocol + `AdbEmulatorKiller` (`adb -s <serial> emu kill` through `Shell.run`, bar's `Config.defaultADBPath()`), `KillEligibility` (button on every `emulator-*` device row, any adb state: an offline orphan is what one kills), `EmulatorLauncher.kill(serial:)` (failure shows in the existing `launcher.error` caption), `DeviceRow` kill button (tooltip warns an agent may use it; no dialog, no daemon call). The button column takes width from the state column so mirror buttons stay aligned.
 
 ## Review
 
@@ -63,4 +66,13 @@ Round 2: clean. Withdrawn: 0. Disputed: 0.
 - Own daemon (`BERTH_HOME=/tmp/b17`) with 5 running emulators: `berth status --json` `devices` lists the phone and emulator-5554..5562 named `Pixel_9`; `slots` empty; `berth status` table unchanged (no device rows). Daemon killed by pid; emulators untouched (5 still listed).
 - Panel proof: render PNGs `live-devices.png` / `live-devices-dark.png`.
 
+- Round 1: build green, 0 warnings; tests green (+ `KillEligibilityTests`, 2 launcher kill tests with `FakeEmulatorKiller`). Render PNGs `live-devices` / `live-devices-dark` show the kill button on both emulator rows only. The click itself was not run: it stays a manual check for a human, no real emulator touched.
+
 ## Feedback
+
+### Round 1 — 2026-11-18
+
+Asked: "Add button to kill emulator".
+Triage: adjustment. It corrects the autopilot assumption "no stop button". Decisions (agent's, most reversible): the button is on unmanaged emulator rows only. berth-bar runs `adb -s <serial> emu kill` itself (no daemon or protocol change, like the plain "Launch emulator" for non-pool AVDs). No confirmation dialog: the tooltip warns that an agent may still use it.
+Changed: new `EmulatorKiller` protocol + `AdbEmulatorKiller` (`adb -s <serial> emu kill`, 15 s timeout, bar's adb path) and `KillEligibility` (every `emulator-*` device row, whatever its adb state: an offline orphan is exactly what you would kill) in `Sources/BerthBar/Launch/`. `EmulatorLauncher.kill(serial:)`: a failure shows in the launcher's error caption. `DeviceRow` has a kill column (taken from the state column so the mirror column still lines up). Tests: `KillEligibilityTests`, `EmulatorLauncherTests` (+2), render fixture `live-devices` (light + dark).
+Warnings: 0 new. Review: deferred to `/wa-validate`. Verify: unit + render tests green. The click itself stays a manual check (desktop proof rules: no click on berth-bar), and no real emulator was killed.

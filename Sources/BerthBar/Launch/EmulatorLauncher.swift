@@ -10,10 +10,12 @@ final class EmulatorLauncher {
     private(set) var error: String?
     private let actions: any DaemonActions
     private let plain: any PlainEmulatorLauncher
+    private let killer: any EmulatorKiller
 
-    init(actions: any DaemonActions = DaemonClientActions(), plain: any PlainEmulatorLauncher = SystemPlainEmulatorLauncher()) {
+    init(actions: any DaemonActions = DaemonClientActions(), plain: any PlainEmulatorLauncher = SystemPlainEmulatorLauncher(), killer: any EmulatorKiller = AdbEmulatorKiller()) {
         self.actions = actions
         self.plain = plain
+        self.killer = killer
     }
 
     nonisolated static var owner: Owner {
@@ -57,6 +59,18 @@ final class EmulatorLauncher {
             try plain.launch(avd: avd)
         } catch {
             self.error = "\(error)"
+        }
+    }
+
+    @discardableResult
+    func kill(serial: String) -> Task<Void, Never> {
+        error = nil
+        return Task { [weak self, killer] in
+            do {
+                try await killer.kill(serial: serial)
+            } catch {
+                self?.error = "\(error)"
+            }
         }
     }
 

@@ -10,6 +10,7 @@ enum PanelColumns {
     static let held: CGFloat = 55
     static let remaining: CGFloat = 60
     static let mirror: CGFloat = 22
+    static let kill: CGFloat = 22
 
     static var detailSpan: CGFloat {
         let columns: [CGFloat] = [state, owner, label, held, remaining]

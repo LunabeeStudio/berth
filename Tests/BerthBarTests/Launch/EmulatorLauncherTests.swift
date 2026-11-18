@@ -73,4 +73,28 @@ struct EmulatorLauncherTests {
         await launcher.prepare(avd: "Fresh").value
         #expect(launcher.error == nil)
     }
+
+    @Test
+    func `a kill click runs the killer with the serial`() async {
+        let killer: FakeEmulatorKiller = .init()
+        let launcher: EmulatorLauncher = .init(actions: StubActions(failure: nil), killer: killer)
+
+        await launcher.kill(serial: "emulator-5554").value
+
+        #expect(killer.killed == ["emulator-5554"])
+        #expect(launcher.error == nil)
+    }
+
+    @Test
+    func `a failed kill sets the error and the next one clears it`() async {
+        let killer: FakeEmulatorKiller = .init(failure: "no such device")
+        let launcher: EmulatorLauncher = .init(actions: StubActions(failure: nil), killer: killer)
+
+        await launcher.kill(serial: "emulator-5554").value
+        #expect(launcher.error?.contains("no such device") == true)
+
+        let working: EmulatorLauncher = .init(actions: StubActions(failure: nil), killer: FakeEmulatorKiller())
+        await working.kill(serial: "emulator-5554").value
+        #expect(working.error == nil)
+    }
 }
