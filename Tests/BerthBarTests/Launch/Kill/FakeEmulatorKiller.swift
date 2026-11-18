@@ -18,6 +18,8 @@ final class FakeEmulatorKiller: EmulatorKiller {
         state.withLock { $0.failure = failure }
     }
 
+    func succeed() { state.withLock { $0.failure = nil } }
+
     var killed: [String] { state.withLock { $0.killed } }
 
     func kill(serial: String) async throws {

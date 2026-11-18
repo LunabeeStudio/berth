@@ -93,8 +93,8 @@ struct EmulatorLauncherTests {
         await launcher.kill(serial: "emulator-5554").value
         #expect(launcher.error?.contains("no such device") == true)
 
-        let working: EmulatorLauncher = .init(actions: StubActions(failure: nil), killer: FakeEmulatorKiller())
-        await working.kill(serial: "emulator-5554").value
-        #expect(working.error == nil)
+        killer.succeed()
+        await launcher.kill(serial: "emulator-5554").value
+        #expect(launcher.error == nil)
     }
 }

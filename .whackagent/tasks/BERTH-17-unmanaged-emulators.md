@@ -1,6 +1,6 @@
 ---
 issue: BERTH-17
-phase: review
+phase: validated
 type: feature
 wiki: [broker, architecture, android-backend]
 note: Seen on 2026-11-18 after a daemon crash (BERTH-18): 4 berth emulators kept running untracked, berth showed 1/5 running.
@@ -46,6 +46,7 @@ Grilled unattended by `/wa-autopilot` on 2026-11-18. Decisions tagged `(autopilo
 - Tests: listing, router (Android / iOS-only / empty pool), broker (listed, ordering, nameless, never granted, managed in booting/leased/stopping never listed, leaves when gone, avdName once per serial), render fixture `live-devices` (+ dark) holds phones and two emulator rows.
 
 - Round 1 (kill button): `EmulatorKiller` protocol + `AdbEmulatorKiller` (`adb -s <serial> emu kill` through `Shell.run`, bar's `Config.defaultADBPath()`), `KillEligibility` (button on every `emulator-*` device row, any adb state: an offline orphan is what one kills), `EmulatorLauncher.kill(serial:)` (failure shows in the existing `launcher.error` caption), `DeviceRow` kill button (tooltip warns an agent may use it; no dialog, no daemon call). The button column takes width from the state column so mirror buttons stay aligned.
+- Round 1 validation autofix: `EmulatorKillError` enum, kill files moved to `Launch/Kill/` (tests too), launcher kill test reuses one launcher.
 
 ## Review
 
@@ -59,6 +60,17 @@ Round 1, 3 findings (all 🟡), all fixed by autofix:
 - [elegance] The `avdNames` prune used a misleading closure name and a nested `contains`. Fixed: filter on a `Set` of serials.
 
 Round 2: clean. Withdrawn: 0. Disputed: 0.
+
+### validation — 2026-11-18 (after feedback round 1)
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict after 2 rounds: clean.
+
+Round 1, 3 findings (all 🟡), all fixed by autofix:
+- [structure] The kill error was a free-text struct. Fixed: `EmulatorKillError` enum (`.timedOut`, `.failed`).
+- [correctness] The test of the error reset ran its second kill on another launcher. Fixed: both kills now run on the same launcher (`FakeEmulatorKiller.succeed()`).
+- [structure] `Launch/` held 9 files flat. Fixed: kill files moved to `Launch/Kill/`, and the tests to match.
+
+Round 2: clean. Withdrawn: 0. Disputed: 0. Autofix changed code after the user's test (error type, file moves, test): retest owed.
 
 ## Verification
 
