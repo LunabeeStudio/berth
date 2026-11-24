@@ -1,7 +1,8 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   // Not local>LunabeeStudio/renovate-config: this repository is public, and Renovate doesn't let a public repository
-  // read a private repository's preset. Copy of that repository's org-inherited-config.json: keep them in step.
+  // read a private repository's preset. The rules of that repository's org-inherited-config.json that apply here
+  // (SwiftPM packages and GitHub Actions): keep them in step.
   extends: [
     'config:recommended',
     ':dependencyDashboard',
@@ -22,54 +23,8 @@
       ],
     },
     {
-      description: [
-        'Kotlin moves as one PR: every org.jetbrains.kotlin artifact, plus the Lunabee convention plugins whose version ends in a Kotlin version (2.1.0-2.4.20), since they bring their own Kotlin Gradle plugin and would raise the compiler past kotlin-test. Placed after the catch-all group: the last matching rule wins, so before it the catch-all swallowed Kotlin into all-minor-patch.',
-      ],
-      groupName: 'kotlin dependencies',
-      groupSlug: 'kotlin-dependencies',
-      matchPackageNames: [
-        '/^org\\.jetbrains\\.kotlin[.:]/',
-        '/^studio\\.lunabee\\.plugin\\.(multiplatform\\.library|multiplatform\\.android\\.library|android\\.library)(:|$)/',
-      ],
-      matchUpdateTypes: [
-        'minor',
-        'patch',
-      ],
-    },
-    {
       matchCurrentVersion: '0',
       enabled: false,
-    },
-    {
-      matchPackageNames: [
-        '/androidx\\.room:.*/',
-      ],
-      groupName: 'androidx-room dependencies',
-      groupSlug: 'androidx-room-all',
-      matchUpdateTypes: [
-        'minor',
-        'patch',
-      ],
-    },
-    {
-      matchPackageNames: [
-        'org.jetbrains.kotlinx:kotlinx-datetime',
-      ],
-      allowedVersions: '!/0\\.6\\.x-compat$/',
-    },
-    {
-      description: [
-        'Renovate never looks up *.gradle.plugin artifacts on Maven Central; the Plugin Portal redirects there',
-      ],
-      matchDatasources: [
-        'maven',
-      ],
-      matchPackageNames: [
-        'studio.lunabee.plugin.**',
-      ],
-      registryUrls: [
-        'https://plugins.gradle.org/m2/',
-      ],
     },
   ],
 }
