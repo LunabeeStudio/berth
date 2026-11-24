@@ -1,11 +1,30 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   // Not local>LunabeeStudio/renovate-config: this repository is public, and Renovate doesn't let a public repository
-  // read a private repository's preset. Same as that preset (config:recommended), plus the Lunabee label.
+  // read a private repository's preset. The rules of that repository's org-inherited-config.json that apply here
+  // (SwiftPM packages and GitHub Actions): keep them in step.
   extends: [
     'config:recommended',
+    ':dependencyDashboard',
   ],
   labels: [
     '💎 Dependencies',
+  ],
+  packageRules: [
+    {
+      groupName: 'all non-major dependencies',
+      groupSlug: 'all-minor-patch',
+      matchPackageNames: [
+        '*',
+      ],
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+      ],
+    },
+    {
+      matchCurrentVersion: '0',
+      enabled: false,
+    },
   ],
 }
