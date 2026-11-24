@@ -28,7 +28,10 @@ cd "$root"
 
 plugin_file="claude-plugin/.claude-plugin/plugin.json"
 marketplace_file=".claude-plugin/marketplace.json"
-assets=(berth-macos-arm64.tar.gz berth-macos-arm64.tar.gz.sha256)
+archive="berth-macos-universal.tar.gz"
+# The same archive under the name releases before 0.8.0 update from.
+legacy_archive="berth-macos-arm64.tar.gz"
+assets=("$archive" "$archive.sha256" "$legacy_archive" "$legacy_archive.sha256")
 tap_repo="LunabeeStudio/homebrew-tap"
 formula_path="Formula/berth.rb"
 readme_path="README.md"
@@ -76,7 +79,7 @@ on_error() {
         echo "Release $tag is live, do not delete it." >&2
         if ! $formula_done; then
             echo "The Homebrew formula was not updated. Render it and commit it to $tap_repo as $formula_path by hand:" >&2
-            echo "  $render_formula $version ${archive_sha:-<sha256 from the release asset ${assets[1]}>}" >&2
+            echo "  $render_formula $version ${archive_sha:-<sha256 from the release asset $archive.sha256>}" >&2
             echo "  gh api -X PUT repos/$tap_repo/contents/$formula_path -f message='berth $version' -f content=<base64 of the file> [-f sha=<current file sha>]" >&2
         fi
         if ! $readme_done; then
@@ -128,8 +131,9 @@ check_tools() {
         command -v "$tool" > /dev/null || fail "$tool is not on PATH: install it"
     done
     gh auth status > /dev/null 2>&1 || fail "gh is not authenticated: run 'gh auth login'"
-    [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]] \
-        || fail "release builds need macOS arm64 (this is $(uname -s) $(uname -m)): run it on an Apple silicon Mac"
+    [[ "$(uname -s)" == "Darwin" ]] || fail "release builds need macOS (this is $(uname -s))"
+    [[ "$(xcode-select -p 2> /dev/null)" == *.app/Contents/Developer ]] \
+        || fail "universal builds need Xcode, not only the Command Line Tools: install Xcode, then run 'sudo xcode-select -s /Applications/Xcode.app'"
 }
 
 check_main() {
@@ -285,11 +289,11 @@ cat <<PLAN
 Release $tag. Plan:
   1. $set_plan
   2. run swift test
-  3. build berth-macos-arm64 with package.sh
+  3. build berth and berth-bar for arm64 and x86_64 with package.sh
   4. tag $tag and push it
   5. create draft release $tag
-  6. upload ${assets[0]} and ${assets[1]}
-  7. check both assets on the draft
+  6. upload ${assets[*]}
+  7. check the ${#assets[@]} assets on the draft
   8. publish $tag as latest
   9. commit the Homebrew formula $version to $tap_repo ($formula_path) and set its $readme_path version badge
  10. open a PR bumping plugin versions to $next and merge it
@@ -331,7 +335,7 @@ gh release create "$tag" --draft --verify-tag --generate-notes --title "$tag"
 draft_created=true
 
 step "6/11 uploading assets"
-gh release upload "$tag" "$dist/${assets[0]}" "$dist/${assets[1]}"
+gh release upload "$tag" "${assets[@]/#/$dist/}"
 
 step "7/11 checking assets on the draft"
 attached="$(gh release view "$tag" --json assets --jq '.assets[].name')"
@@ -344,7 +348,7 @@ gh release edit "$tag" --draft=false --latest
 published=true
 
 step "9/11 committing the Homebrew formula and README badge to $tap_repo"
-read -r archive_sha _ < "$dist/${assets[1]}"
+read -r archive_sha _ < "$dist/$archive.sha256"
 publish_formula
 publish_readme
 

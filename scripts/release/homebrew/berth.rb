@@ -1,11 +1,10 @@
 class Berth < Formula
   desc "Emulator and simulator lease broker for parallel agents"
   homepage "https://github.com/LunabeeStudio/berth"
-  url "https://github.com/LunabeeStudio/berth/releases/download/v{{VERSION}}/berth-macos-arm64.tar.gz"
+  url "https://github.com/LunabeeStudio/berth/releases/download/v{{VERSION}}/berth-macos-universal.tar.gz"
   sha256 "{{SHA256}}"
   license "MIT"
 
-  depends_on arch: :arm64
   depends_on :macos
 
   def install
