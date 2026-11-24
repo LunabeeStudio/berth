@@ -1,6 +1,11 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  // Not local>LunabeeStudio/renovate-config: this repository is public, and Renovate doesn't let a public repository
+  // read a private repository's preset. Same as that preset (config:recommended), plus the Lunabee label.
   extends: [
-    'local>LunabeeStudio/renovate-config',
+    'config:recommended',
+  ],
+  labels: [
+    '💎 Dependencies',
   ],
 }
