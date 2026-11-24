@@ -2,11 +2,11 @@
 
 One script ships a release: `scripts/release/release.sh`. A person runs it, on a Mac. It needs no Claude and no CI.
 
-The script tests and builds `berth` and `berth-bar` for macOS arm64, tags the commit, and publishes a GitHub release with `berth-macos-arm64.tar.gz` and its `.sha256`. It then commits the Homebrew formula to the tap, bumps the plugin versions for the next release and closes the Plane module.
+The script tests and builds `berth` and `berth-bar` as universal macOS binaries (arm64 and x86_64), tags the commit, and publishes a GitHub release with `berth-macos-universal.tar.gz` and its `.sha256`. The release also carries the same archive as `berth-macos-arm64.tar.gz`, with its own `.sha256`: versions before 0.8.0 update from that name. Remove it once no such install is left. It then commits the Homebrew formula to the tap, bumps the plugin versions for the next release and closes the Plane module.
 
 ## Prerequisites
 
-- A Mac with Apple silicon (macOS arm64).
+- A Mac with Xcode, not only the Command Line Tools: SwiftPM builds for arm64 and x86_64 at once only with Xcode's build system. `xcode-select -p` must point into `Xcode.app`.
 - `git`, `gh`, `swift`, `plutil` and `python3` on PATH.
 - `gh` authenticated: `gh auth login`, with push access to the tap repository `LunabeeStudio/homebrew-tap`.
 - Your checkout on `main`, clean, and equal to `origin/main`.
@@ -32,13 +32,13 @@ The script prints one line per step.
 
 1. Sets the plugin versions. If `plugin.json` and `marketplace.json` do not hold `X.Y.Z`, it opens a `release/set-X.Y.Z` PR, merges it at once, and pulls `main`. If they already do, it skips this.
 2. Runs `swift test`.
-3. Builds the two assets with `scripts/release/package.sh` into a temporary folder.
+3. Builds the four assets with `scripts/release/package.sh` into a temporary folder. It checks that `berth` and `berth-bar` both hold arm64 and x86_64.
 4. Tags `vX.Y.Z` and pushes the tag.
 5. Creates a draft release with generated notes.
-6. Uploads both assets to the draft.
-7. Checks that both assets are on the draft, by name.
+6. Uploads the four assets to the draft.
+7. Checks that the four assets are on the draft, by name.
 8. Publishes the release and marks it latest. Only now do `install.sh` and auto update see it.
-9. Renders the formula from `scripts/release/homebrew/berth.rb` with the version and the SHA-256 of the archive built in step 3 (`scripts/release/homebrew/render.sh`), and commits it as `Formula/berth.rb` on the default branch of `LunabeeStudio/homebrew-tap` with `gh api -X PUT`. It reads the file's current `sha` first; a missing file (first release) is fine. It then sets the berth version badge in the tap's `README.md` to `X.Y.Z` and commits it the same way, under the same message `berth X.Y.Z`.
+9. Renders the formula from `scripts/release/homebrew/berth.rb` with the version and the SHA-256 of the universal archive built in step 3 (`scripts/release/homebrew/render.sh`), and commits it as `Formula/berth.rb` on the default branch of `LunabeeStudio/homebrew-tap` with `gh api -X PUT`. It reads the file's current `sha` first; a missing file (first release) is fine. It then sets the berth version badge in the tap's `README.md` to `X.Y.Z` and commits it the same way, under the same message `berth X.Y.Z`.
 10. Opens a `release/bump-X.(Y+1).0` PR that sets the plugin versions to `X.(Y+1).0`, and merges it at once.
 11. Closes the Plane module `X.Y.Z` (status `completed`). The module stays open, and the plan says why, when `PLANE_API_KEY` is not set, when Plane cannot be read, or when no open module `X.Y.Z` exists. The release still ships in those cases.
 
@@ -67,7 +67,7 @@ A version PR can be left half done. Switch to `main`, delete the local `release/
 
 Fix the cause, then run the script again. There is no resume: a rerun starts from the checks. If the version PR already merged, the script sees the versions and skips step 1.
 
-After step 8 the release is live. Never delete it. If step 9 fails, the script prints the commands to publish the formula by hand: render it with `scripts/release/homebrew/render.sh X.Y.Z <sha256>` (the SHA-256 is in the release's `.sha256` asset) and `gh api -X PUT repos/LunabeeStudio/homebrew-tap/contents/Formula/berth.rb` with the file base64-encoded and the current `sha` when the file exists. If only the badge failed, edit it in the tap's `README.md` and push to `main`. Then open the bump PR to `X.(Y+1).0` by hand and close the Plane module. If step 10 fails, open the bump PR by hand, then close the module. If step 11 fails, close the module by hand:
+After step 8 the release is live. Never delete it. If step 9 fails, the script prints the commands to publish the formula by hand: render it with `scripts/release/homebrew/render.sh X.Y.Z <sha256>` (the SHA-256 is in the release's `berth-macos-universal.tar.gz.sha256` asset) and `gh api -X PUT repos/LunabeeStudio/homebrew-tap/contents/Formula/berth.rb` with the file base64-encoded and the current `sha` when the file exists. If only the badge failed, edit it in the tap's `README.md` and push to `main`. Then open the bump PR to `X.(Y+1).0` by hand and close the Plane module. If step 10 fails, open the bump PR by hand, then close the module. If step 11 fails, close the module by hand:
 
 ```bash
 .lunabee/board/lb-board close-milestone X.Y.Z

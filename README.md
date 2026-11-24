@@ -10,7 +10,7 @@ agent ─► berth claim / run / release ─► daemon (auto-started, Unix socke
                                           └─ resets on release, reclaims abandoned leases, stops idle emulators
 ```
 
-Native Swift 6 binary for macOS (Apple silicon), no runtime.
+Native Swift 6 binary for macOS, universal (Apple silicon and Intel), no runtime.
 
 ## Install
 
@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/LunabeeStudio/berth/main/install.sh
 Without the script:
 
 ```bash
-mkdir -p ~/.local/bin && curl -fsSL https://github.com/LunabeeStudio/berth/releases/latest/download/berth-macos-arm64.tar.gz | tar -xz -C ~/.local/bin
+mkdir -p ~/.local/bin && curl -fsSL https://github.com/LunabeeStudio/berth/releases/latest/download/berth-macos-universal.tar.gz | tar -xz -C ~/.local/bin
 ```
 
 `~/.local/bin` must be on your PATH. The archive holds `berth` and `berth-bar`.

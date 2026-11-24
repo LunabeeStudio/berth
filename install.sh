@@ -14,24 +14,36 @@ cleanup() {
 main() {
     local os="${BERTH_UNAME_S:-$(uname -s)}"
     local arch="${BERTH_UNAME_M:-$(uname -m)}"
-    if [[ -z "${BERTH_UNAME_M:-}" && "$arch" != "arm64" && "$(sysctl -in hw.optional.arm64 2>/dev/null || true)" == "1" ]]; then
-        arch="arm64"
-    fi
-    if [[ "$os" != "Darwin" || "$arch" != "arm64" ]]; then
-        echo "berth supports only macOS on Apple silicon (Darwin arm64), found $os $arch" >&2
+    if [[ "$os" != "Darwin" || ( "$arch" != "arm64" && "$arch" != "x86_64" ) ]]; then
+        echo "berth supports only macOS (Darwin arm64 or x86_64), found $os $arch" >&2
         exit 1
     fi
 
     local base="${BERTH_RELEASE_URL:-https://github.com/LunabeeStudio/berth/releases/latest/download}"
     local dir="${BERTH_INSTALL_DIR:-$HOME/.local/bin}"
-    local archive="berth-macos-arm64.tar.gz"
+    local archive="berth-macos-universal.tar.gz"
     local binaries=(berth berth-bar)
 
     work="$(mktemp -d)"
     trap cleanup EXIT
 
     echo "Downloading $archive"
-    curl -fsSL "$base/$archive" -o "$work/$archive"
+    # A network failure stops here with curl's own error. 000 = a file:// URL (tests), which has no HTTP status.
+    local status
+    status="$(curl -sSL -w '%{http_code}' "$base/$archive" -o "$work/$archive")"
+    if [[ "$status" == 404 ]]; then
+        # Releases before 0.8.0 carry only the arm64 archive.
+        if [[ "$arch" != "arm64" ]]; then
+            echo "no $archive in the release: berth runs on Intel Macs from 0.8.0" >&2
+            exit 1
+        fi
+        archive="berth-macos-arm64.tar.gz"
+        echo "Downloading $archive"
+        curl -fsSL "$base/$archive" -o "$work/$archive"
+    elif [[ "$status" != 200 && "$status" != 000 ]]; then
+        echo "downloading $archive failed: HTTP $status" >&2
+        exit 1
+    fi
     curl -fsSL "$base/$archive.sha256" -o "$work/$archive.sha256"
 
     if ! (cd "$work" && shasum -a 256 -c "$archive.sha256" >/dev/null 2>&1); then

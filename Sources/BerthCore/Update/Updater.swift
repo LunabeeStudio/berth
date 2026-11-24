@@ -2,7 +2,8 @@ import Foundation
 
 /// Checks the release feed and installs a newer release beside the running executable.
 public struct Updater: UpdateSource {
-    public static let archiveName: String = "berth-macos-arm64.tar.gz"
+    /// Releases also carry the same archive as `berth-macos-arm64.tar.gz`, the name versions before 0.8.0 ask for.
+    public static let archiveName: String = "berth-macos-universal.tar.gz"
     public static let defaultFeed: URL = .init(string: "https://api.github.com/repos/LunabeeStudio/berth/releases/latest")!
 
     private let feed: URL
