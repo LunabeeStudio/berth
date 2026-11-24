@@ -15,7 +15,7 @@ let package = Package(
         .library(name: "BerthCore", targets: ["BerthCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.8.2"),
         .package(url: "https://github.com/apple/swift-nio", from: "2.80.0"),
     ],
     targets: [
