@@ -82,7 +82,7 @@ Glossary: + `Wi-Fi device` | Never: wireless device, network device | Code: `isW
 - [ ] A wrong pairing code shows adb's error line and keeps both fields filled.
 - [ ] When auto-connect and the mDNS lookup both fail, the window asks for the phone's "IP address & Port" and connects with it.
 - [ ] Closing the window during the QR wait stops the `adb mdns services` polling.
-- [ ] Wi-Fi device rows show a `wifi.slash` button. Clicking it removes the row on the next poll, or shows the failure in the caption.
+- [ ] Wi-Fi device rows show a `wifi.slash` button. Clicking it removes the row on the next poll, or shows the failure in the caption. A row already gone from adb counts as disconnected, with no error. A phone paired by Wireless debugging comes back by itself within about 15 s: adb reconnects it.
 - [ ] USB phone rows in state `device` show a `wifi` button. Clicking it makes an `<ip>:5555` row appear while the USB row stays.
 - [ ] With the phone's Wi-Fi off, the `wifi` button shows "<serial>: no Wi-Fi address, turn Wi-Fi on".
 - [ ] Emulator rows keep the Kill button only. USB rows in a state other than `device` show no new button.
@@ -131,4 +131,27 @@ Round 2: 10 closed, 1 open.
 - Not run: disconnect of an mDNS-named row (`BERTH_WIFI_MDNS_SERIAL`). It needs a phone paired by QR code.
 - Left to a human: QR scan, pairing code entry, both row buttons clicked in the panel, typing and resizing in the pair window.
 
+### Feedback round 1
+
+- `BERTH_WIFI_MDNS_SERIAL=adb-R3CT312YV5B-kWl1wg._adb-tls-connect._tcp swift test --filter RealPhoneWifiTests` passed on the S22. Two disconnects in a row through `WifiDeviceActions` both left the caption empty. The phone came back within 10 s by adb's mDNS auto-connect.
+- `swift build` and `swift test` pass: 63 + 147 + 82 + 164 tests, 0 new warnings.
+
 ## Feedback
+
+### Round 1 — 2026-11-27
+
+Asked: "disconnect: treat "no such device" as already gone; note in PR that a paired phone auto-reconnects within ~15 s".
+
+Triage: both adjustments.
+
+Evidence, captured on the S22 connected by Wireless debugging (`adb-R3CT312YV5B-kWl1wg._adb-tls-connect._tcp`):
+- `adb disconnect <mDNS name>` works: `disconnected …`, exit 0. The open verifier finding guessed it would fail. It does not.
+- The same command right after answers `error: no such device '<name>:5555'`, exit 1. The panel row lags adb by up to one poll, so a click on a row adb already dropped showed that error. The human saw it on the first click.
+- adb reconnects a paired phone by itself 8 to 15 s after a disconnect.
+
+Changed:
+- `SdkWifiAdb.disconnect` treats adb's `no such device` answer as success: the device is already gone (`AdbOutput.reportsNoSuchDevice`, unit tested with the real line).
+- The opt-in mDNS test disconnects twice in a row and expects no caption.
+- The Disconnect criterion now says a row already gone counts as disconnected, and that a paired phone comes back within about 15 s.
+
+Warnings: none. Review: deferred to `/wa-validate`. Verify: real run on the S22 passed.

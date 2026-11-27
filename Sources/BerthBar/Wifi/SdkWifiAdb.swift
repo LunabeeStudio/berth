@@ -24,7 +24,9 @@ struct SdkWifiAdb: WifiAdb {
     }
 
     func disconnect(serial: String) async throws {
-        try expectSuccess(await run("disconnect", ["disconnect", serial]))
+        let result: ShellResult = try await run("disconnect", ["disconnect", serial])
+        if AdbOutput.reportsNoSuchDevice(stdout: result.stdout, stderr: result.stderr) { return }
+        try expectSuccess(result)
     }
 
     func tcpip(serial: String, port: Int) async throws {

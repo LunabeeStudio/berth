@@ -70,6 +70,19 @@ struct AdbOutputTests {
     }
 
     @Test
+    func `no such device is reported on either stream`() {
+        let line: String = "error: no such device 'adb-R3CT312YV5B-kWl1wg._adb-tls-connect._tcp:5555'\n"
+
+        #expect(AdbOutput.reportsNoSuchDevice(stdout: line, stderr: ""))
+        #expect(AdbOutput.reportsNoSuchDevice(stdout: "", stderr: line))
+    }
+
+    @Test(arguments: ["disconnected 192.168.4.29:5555\n", "error: device offline\n", ""])
+    func `any other output is not a no such device`(output: String) {
+        #expect(!AdbOutput.reportsNoSuchDevice(stdout: output, stderr: ""))
+    }
+
+    @Test
     func `an error prefixed line is reported on either stream`() {
         #expect(AdbOutput.reportsError(stdout: "error: no such device '10.0.0.2:5555'\n", stderr: ""))
         #expect(AdbOutput.reportsError(stdout: "", stderr: "error: device offline\n"))

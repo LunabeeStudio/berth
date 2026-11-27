@@ -24,6 +24,10 @@ enum AdbOutput {
         (lines(stderr) + lines(stdout)).contains { $0.hasPrefix("error:") }
     }
 
+    static func reportsNoSuchDevice(stdout: String, stderr: String) -> Bool {
+        (lines(stderr) + lines(stdout)).contains { $0.hasPrefix("error: no such device") }
+    }
+
     private static func lines(_ output: String) -> [String] {
         output
             .split(whereSeparator: \.isNewline)

@@ -31,8 +31,11 @@ struct RealPhoneWifiTests {
         let actions: WifiDeviceActions = .init(adb: adb)
 
         await actions.disconnect(serial: serial).value
-
         print("[wifi-proof] disconnect(\(serial)) caption=\(actions.caption ?? "nil")")
+        #expect(actions.caption == nil)
+
+        await actions.disconnect(serial: serial).value
+        print("[wifi-proof] second disconnect caption=\(actions.caption ?? "nil")")
         #expect(actions.caption == nil)
         let reconnected: Bool = await Self.comesBack(serial, adb: adb)
         print("[wifi-proof] \(serial) \(reconnected ? "came back within 10 s (mDNS auto-connect)" : "stayed gone for 10 s")")
