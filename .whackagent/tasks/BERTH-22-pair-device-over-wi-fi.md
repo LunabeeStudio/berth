@@ -126,7 +126,9 @@ Round 2: 10 closed, 1 open.
 - `PairQRImageTests` decodes the QR image back to the exact payload with CIDetector.
 - Real `adb mdns services` output captured on adb 37.0.3: tab separated, service type without a trailing dot. The parser accepts it.
 - berth-bar built from this branch starts with `BERTH_HOME=/tmp/bb22`, stays alive, and the frontmost app does not change (`desk-state` before and after identical). Stopped by pid.
-- Not run: the real phone test (`BERTH_WIFI_PHONE=R3CT312YV5B swift test --filter RealPhoneWifiTests`). The USB phone was unplugged when the test ran, so no `tcpip`, `connect` or `disconnect` reached it. The mDNS auto-reconnect after Disconnect is not observed yet.
+- Real phone run, after the phone was plugged back in: `BERTH_WIFI_PHONE=R3CT312YV5B swift test --filter RealPhoneWifiTests` passed. `wifiAddress` gave `192.168.4.29`. After Switch to Wi-Fi, `adb devices` listed `192.168.4.29:5555` and `R3CT312YV5B`, both `device`. Disconnect removed `192.168.4.29:5555`, and it stayed gone for 10 s: no auto-reconnect. `adb -s R3CT312YV5B usb` put the phone back in USB mode.
+- `adb mdns services` listed nothing while the phone was in `tcpip` mode: only paired phones advertise `_adb-tls-connect._tcp`.
+- Not run: disconnect of an mDNS-named row (`BERTH_WIFI_MDNS_SERIAL`). It needs a phone paired by QR code.
 - Left to a human: QR scan, pairing code entry, both row buttons clicked in the panel, typing and resizing in the pair window.
 
 ## Feedback
