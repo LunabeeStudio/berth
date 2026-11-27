@@ -1,6 +1,6 @@
 ---
 issue: BERTH-23
-phase: validated
+phase: review
 type: feature
 wiki: [architecture, glossary]
 note: Grilled by autopilot, nobody present. Every decision below tagged (autopilot assumption) waits for the user's confirmation.
@@ -35,7 +35,7 @@ Today a human who copies text on an emulator or a phone has no way to get it on 
   - Emulators section: Android slots in state `free` or `leased`, windowed or headless. A leased emulator is only read: no input, no wake.
   - Devices section: rows in adb state `device`, USB phones, Wi-Fi devices and unmanaged emulators alike.
 - iOS rows get no button. `xcrun simctl pbpaste` would do it, but the ticket only asks for Android.
-- Icon `doc.on.clipboard`, tooltip "Copy clipboard to Mac".
+- Icon `square.on.square`, tooltip "Copy clipboard to Mac".
 - Mac side: `NSPasteboard.general`, cleared, then set to the text as a plain string.
 - One click, one read. Nothing is polled and nothing syncs in the background.
 - Feedback in the panel caption, the same line the Kill and Wi-Fi buttons use:
@@ -73,7 +73,7 @@ Today a human who copies text on an emulator or a phone has no way to get it on 
 
 ## Acceptance criteria
 
-- [ ] Android emulator rows in state `free` or `leased` show a `doc.on.clipboard` button with the tooltip "Copy clipboard to Mac", in a new column after Mirror.
+- [ ] Android emulator rows in state `free` or `leased` show a `square.on.square` button with the tooltip "Copy clipboard to Mac", in a new column after Mirror.
 - [ ] Device rows in adb state `device` show the same button. Device rows in other states and iOS rows show none.
 - [ ] Clicking it on an emulator whose clipboard holds text puts that exact text on the Mac clipboard, and the caption shows "Copied clipboard of <serial>".
 - [ ] Clicking it on a real phone, USB or Wi-Fi, does the same.
@@ -131,3 +131,25 @@ Round 3: clean.
 - Not run on a device: a sleeping phone during a read (all devices were awake; the server runs with `power_on=false` and berth sends no input), and a read while a mirror of the same device is open (a hook blocks scrcpy in the agent's shell).
 - Left to a human: one click on an emulator row and one on a phone row, then a paste on the Mac.
 - Seen once, not reproduced: right after a series of timed out reads, one read got an empty reply while the emulator's clipboard held text.
+
+### Feedback round 1
+
+- `swift build` and `swift test` pass: 63 + 147 + 91 + 228 tests, 0 new warnings.
+- Render PNG `live-clipboard` checked: the `square.on.square` button shows on the same rows as before. On the windowed row, which has no Mirror button, the clipboard button now stays in its own column.
+- Not run on a device: the change is an icon and the row layout.
+
+## Feedback
+
+### Round 1 — 2026-11-27
+
+Asked: "find more modern icon for copy". The user picked `square.on.square` from rendered candidates (`document.on.document`, `square.on.square`, `square.and.arrow.down.on.square`, `arrow.right.doc.on.clipboard`).
+
+Triage:
+- adjustment: the button icon changes from `doc.on.clipboard` to `square.on.square`. The first criterion and the wiki now name it.
+- defect, found in the render while checking the icon: on a windowed emulator row, which has no Mirror button, the clipboard button moved left into the Mirror column. Empty Mirror and clipboard columns on emulator rows now keep their width (`EmulatorRow`).
+
+Changed, both inline (written by the main thread, no implementer):
+- `Sources/BerthBar/Panel/ClipboardButton.swift`: icon `square.on.square`.
+- `Sources/BerthBar/Panel/EmulatorRow.swift`: the Mirror and clipboard columns are `Color.clear` frames with the button as overlay, like the Kill column of `DeviceRow`.
+
+Warnings: none. Review: deferred to `/wa-validate`. Verify: render PNG checked.

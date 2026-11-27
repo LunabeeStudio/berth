@@ -22,8 +22,8 @@ struct EmulatorRow: View {
             Text(slot.lease?.label ?? "—").frame(width: PanelColumns.label, alignment: .leading)
             Text(DurationFormat.clock(now.timeIntervalSince(slot.lease?.grantedAt ?? slot.stateSince))).monospacedDigit().frame(width: PanelColumns.held, alignment: .leading)
             remaining.frame(width: PanelColumns.remaining, alignment: .leading)
-            mirrorButton.frame(width: PanelColumns.mirror)
-            clipboardButton.frame(width: PanelColumns.clipboard)
+            Color.clear.frame(width: PanelColumns.mirror, height: 1).overlay { mirrorButton }
+            Color.clear.frame(width: PanelColumns.clipboard, height: 1).overlay { clipboardButton }
         }
         .lineLimit(1)
         .font(.callout)

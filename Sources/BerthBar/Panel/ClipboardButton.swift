@@ -5,7 +5,7 @@ struct ClipboardButton: View {
     let actions: ClipboardActions
 
     var body: some View {
-        Button { actions.copy(serial: serial) } label: { Image(systemName: "doc.on.clipboard") }
+        Button { actions.copy(serial: serial) } label: { Image(systemName: "square.on.square") }
             .buttonStyle(.borderless)
             .help("Copy clipboard to Mac")
     }
