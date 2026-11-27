@@ -6,6 +6,7 @@ struct EmulatorRow: View {
     let now: Date
     let pool: [PoolEntry]
     let launcher: EmulatorLauncher
+    let clipboardActions: ClipboardActions
     let mirror: MirrorController
 
     var body: some View {
@@ -21,7 +22,8 @@ struct EmulatorRow: View {
             Text(slot.lease?.label ?? "—").frame(width: PanelColumns.label, alignment: .leading)
             Text(DurationFormat.clock(now.timeIntervalSince(slot.lease?.grantedAt ?? slot.stateSince))).monospacedDigit().frame(width: PanelColumns.held, alignment: .leading)
             remaining.frame(width: PanelColumns.remaining, alignment: .leading)
-            mirrorButton.frame(width: PanelColumns.mirror)
+            Color.clear.frame(width: PanelColumns.mirror, height: 1).overlay { mirrorButton }
+            Color.clear.frame(width: PanelColumns.clipboard, height: 1).overlay { clipboardButton }
         }
         .lineLimit(1)
         .font(.callout)
@@ -33,6 +35,13 @@ struct EmulatorRow: View {
             Button { mirror.open(slot, platform: pool.platform(of: slot.model)) } label: { Image(systemName: "play.display") }
                 .buttonStyle(.borderless)
                 .help(MirrorEligibility.help(for: slot, pool: pool))
+        }
+    }
+
+    @ViewBuilder
+    private var clipboardButton: some View {
+        if ClipboardEligibility.showsCopyButton(slot, pool: pool) {
+            ClipboardButton(serial: slot.serial, actions: clipboardActions)
         }
     }
 

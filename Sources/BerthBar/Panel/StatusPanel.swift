@@ -8,6 +8,7 @@ struct StatusPanel: View {
     @Bindable var autoUpdate: AutoUpdateSetting
     let launcher: EmulatorLauncher
     let wifiActions: WifiDeviceActions
+    let clipboardActions: ClipboardActions
     let pairWindow: PairWindowController
     let avdList: AVDList
     let mirror: MirrorController
@@ -36,7 +37,7 @@ struct StatusPanel: View {
                 .keyboardShortcut("q")
         }
         .padding(12)
-        .frame(width: 650)
+        .frame(width: 680)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -52,14 +53,14 @@ struct StatusPanel: View {
             Text("none running").foregroundStyle(.secondary)
         }
         ForEach(snapshot.slots) { slot in
-            EmulatorRow(slot: slot, now: model.now, pool: snapshot.pool, launcher: launcher, mirror: mirror)
+            EmulatorRow(slot: slot, now: model.now, pool: snapshot.pool, launcher: launcher, clipboardActions: clipboardActions, mirror: mirror)
         }
         Text("Devices").font(.subheadline.bold())
         if snapshot.devices.isEmpty {
             Text("none connected").foregroundStyle(.secondary)
         }
         ForEach(snapshot.devices) { device in
-            DeviceRow(device: device, launcher: launcher, wifiActions: wifiActions, mirror: mirror)
+            DeviceRow(device: device, launcher: launcher, wifiActions: wifiActions, clipboardActions: clipboardActions, mirror: mirror)
         }
         Text("Queue").font(.subheadline.bold())
         if snapshot.queue.isEmpty {
@@ -81,6 +82,9 @@ struct StatusPanel: View {
             Text(caption).font(.caption).foregroundStyle(.secondary)
         }
         if let caption = wifiActions.caption {
+            Text(caption).font(.caption).foregroundStyle(.secondary)
+        }
+        if let caption = clipboardActions.caption {
             Text(caption).font(.caption).foregroundStyle(.secondary)
         }
     }
