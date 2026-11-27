@@ -64,7 +64,9 @@ struct StatusPanelRenderTests {
         let wifi: PhysicalDevice = .mock(serial: "192.168.100.200:5555", model: "Pixel_Fold")
         let emulator: PhysicalDevice = .mock(serial: "emulator-5554", model: "Pixel_9")
         let booting: PhysicalDevice = .mock(serial: "emulator-5556", model: "sdk_gphone64_arm64", state: .offline)
-        return .live(.mock(generatedAt: now, devices: [phone, locked, wifi, emulator, booting]))
+        let usbOffline: PhysicalDevice = .mock(serial: "ZX1G22KLMN", model: "Pixel_3a", state: .offline)
+        let usbLocked: PhysicalDevice = .mock(serial: "0A1B2C3D4E5F", model: nil, state: .unauthorized)
+        return .live(.mock(generatedAt: now, devices: [phone, locked, wifi, emulator, booting, usbOffline, usbLocked]))
     }
 
     private static func render(
@@ -72,6 +74,8 @@ struct StatusPanelRenderTests {
         named name: String,
         appearance: NSAppearance.Name = .aqua,
         mirror: MirrorController = .init(),
+        wifiActions: WifiDeviceActions = .init(),
+        pairWindow: PairWindowController = .init(),
         avdList: AVDList = .init(load: { [] }),
         autoUpdate: AutoUpdateSetting? = nil
     ) throws -> NSBitmapImageRep {
@@ -82,13 +86,13 @@ struct StatusPanelRenderTests {
             environment: [:]
         )
         let setting: AutoUpdateSetting = try autoUpdate ?? Self.setting(autoUpdate: true)
-        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, autoUpdate: setting, launcher: .init(), avdList: avdList, mirror: mirror))
+        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, autoUpdate: setting, launcher: .init(), wifiActions: wifiActions, pairWindow: pairWindow, avdList: avdList, mirror: mirror))
         host.appearance = NSAppearance(named: appearance)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
         let image: NSBitmapImageRep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
         host.cacheDisplay(in: host.bounds, to: image)
-        try writePNG(image, named: name)
+        try PanelPNG.write(image, named: name)
         return image
     }
 
@@ -97,14 +101,6 @@ struct StatusPanelRenderTests {
         defer { try? FileManager.default.removeItem(at: url) }
         try Config(autoUpdate: autoUpdate).save(to: url)
         return .init(configURL: url)
-    }
-
-    private static func writePNG(_ image: NSBitmapImageRep, named name: String) throws {
-        guard let directory: String = ProcessInfo.processInfo.environment["BERTH_PANEL_PNG_DIR"] else { return }
-        let url: URL = .init(fileURLWithPath: directory, isDirectory: true)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        let data: Data = try #require(image.representation(using: .png, properties: [:]))
-        try data.write(to: url.appendingPathComponent("\(name).png"))
     }
 
     private static func expectPanelSized(_ image: NSBitmapImageRep) {
@@ -207,6 +203,16 @@ struct StatusPanelRenderTests {
         let preparing: Slot = .mock(serial: "emulator-5554", model: "Pixel_Fresh", state: .preparing, stateSince: Self.now.addingTimeInterval(-42))
         let state: StatusState = .live(.mock(slots: [preparing], generatedAt: Self.now))
         Self.expectPanelSized(try Self.render(state, named: name, appearance: appearance))
+    }
+
+    @Test
+    func `live with a wifi caption renders the panel`() async throws {
+        let adb: FakeWifiAdb = .init(.init(failure: .failed(line: "error: no such device '192.168.100.200:5555'")))
+        let wifiActions: WifiDeviceActions = .init(adb: adb)
+        await wifiActions.disconnect(serial: "192.168.100.200:5555").value
+
+        Self.expectPanelSized(try Self.render(Self.devices(), named: "live-devices-wifi-caption", wifiActions: wifiActions))
+        #expect(wifiActions.caption == "error: no such device '192.168.100.200:5555'")
     }
 
     @Test

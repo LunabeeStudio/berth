@@ -1,5 +1,3 @@
-import BerthCore
-
 public struct DeviceListing: Sendable, Equatable {
     public var live: Set<String>
     public var devices: [PhysicalDevice]

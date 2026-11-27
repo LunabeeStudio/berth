@@ -1,9 +1,10 @@
 import BerthCore
 import SwiftUI
 
-struct AVDMenus: View {
+struct PanelActions: View {
     let items: AVDMenuItems
     let launcher: EmulatorLauncher
+    let pairWindow: PairWindowController
 
     var body: some View {
         HStack(spacing: 12) {
@@ -25,6 +26,7 @@ struct AVDMenus: View {
                 }
                 .fixedSize()
             }
+            Button("Pair device…") { pairWindow.show() }
         }
     }
 }

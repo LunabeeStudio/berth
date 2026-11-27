@@ -1,5 +1,4 @@
-import BerthCore
-@testable import BerthDaemon
+@testable import BerthCore
 import Testing
 
 @Suite
