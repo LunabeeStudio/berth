@@ -11,7 +11,7 @@ struct Harness {
     let adbPid: AdbPidBox = .init()
     let broker: Broker
 
-    init(maxRunning: Int = 2, pool: [PoolEntry] = [PoolEntry(name: "Pixel", maxInstances: 2)], idle: Int = 900, store: StateStore? = nil, preparer: FakePreparer? = nil, configURL: URL = FileManager.default.temporaryDirectory.appending(path: "berth-harness-\(UUID().uuidString).json")) {
+    init(maxRunning: Int = 2, pool: [PoolEntry] = [PoolEntry(name: "Pixel", maxInstances: 2)], idle: Int = 900, store: StateStore? = nil, preparer: FakePreparer? = nil, iosDevices: (any IOSDeviceSource)? = nil, configURL: URL = FileManager.default.temporaryDirectory.appending(path: "berth-harness-\(UUID().uuidString).json")) {
         let clock = clock
         let owners = owners
         let adbPid: AdbPidBox = adbPid
@@ -24,7 +24,8 @@ struct Harness {
             now: { clock.now },
             ownerAlive: { owners.isAlive($0) },
             adbServerPid: { adbPid.value },
-            listingRetryDelay: .zero
+            listingRetryDelay: .zero,
+            iosDevices: iosDevices
         )
     }
 

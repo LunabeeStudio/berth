@@ -35,4 +35,8 @@ final class Client: Sendable {
     var lastPosition: Int? {
         log.events.withLock { $0.compactMap { if case let .queued(position) = $0 { position } else { nil } }.last }
     }
+
+    var snapshots: [StateSnapshot] {
+        log.events.withLock { $0.compactMap { if case let .state(snapshot) = $0 { snapshot } else { nil } } }
+    }
 }

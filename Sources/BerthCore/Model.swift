@@ -129,6 +129,7 @@ public struct StateSnapshot: Codable, Sendable {
     public var generatedAt: Date
     public var adbRestartedAt: Date?
     public var devices: [PhysicalDevice]
+    public var iosDevices: [IOSDevice]
 
     public init(
         slots: [Slot],
@@ -137,7 +138,8 @@ public struct StateSnapshot: Codable, Sendable {
         pool: [PoolEntry],
         generatedAt: Date,
         adbRestartedAt: Date? = nil,
-        devices: [PhysicalDevice] = []
+        devices: [PhysicalDevice] = [],
+        iosDevices: [IOSDevice] = []
     ) {
         self.slots = slots
         self.queue = queue
@@ -146,6 +148,7 @@ public struct StateSnapshot: Codable, Sendable {
         self.generatedAt = generatedAt
         self.adbRestartedAt = adbRestartedAt
         self.devices = devices
+        self.iosDevices = iosDevices
     }
 
     public init(from decoder: any Decoder) throws {
@@ -157,6 +160,7 @@ public struct StateSnapshot: Codable, Sendable {
         generatedAt = try container.decode(Date.self, forKey: .generatedAt)
         adbRestartedAt = try container.decodeIfPresent(Date.self, forKey: .adbRestartedAt)
         devices = try container.decodeIfPresent([PhysicalDevice].self, forKey: .devices) ?? []
+        iosDevices = try container.decodeIfPresent([IOSDevice].self, forKey: .iosDevices) ?? []
     }
 }
 
@@ -236,8 +240,18 @@ extension StateSnapshot {
         pool: [PoolEntry] = [],
         generatedAt: Date = .init(timeIntervalSince1970: 0),
         adbRestartedAt: Date? = nil,
-        devices: [PhysicalDevice] = []
+        devices: [PhysicalDevice] = [],
+        iosDevices: [IOSDevice] = []
     ) -> StateSnapshot {
-        .init(slots: slots, queue: queue, maxRunning: maxRunning, pool: pool, generatedAt: generatedAt, adbRestartedAt: adbRestartedAt, devices: devices)
+        .init(
+            slots: slots,
+            queue: queue,
+            maxRunning: maxRunning,
+            pool: pool,
+            generatedAt: generatedAt,
+            adbRestartedAt: adbRestartedAt,
+            devices: devices,
+            iosDevices: iosDevices
+        )
     }
 }

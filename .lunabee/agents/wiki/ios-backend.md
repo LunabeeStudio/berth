@@ -21,5 +21,12 @@ Pool entry `{"simulator": "iPhone 17", "maxInstances": 2}` — value = simctl de
 ## Mirror
 `berth-bar` Mirror button on `free`/`leased` sims → DeviceHub window (`devices://device/open?id=<udid>`), live + interactive, sim not rebooted. DeviceHub "Stop simulators on quit" says it only hits sims it booted itself → berth sims should survive (unconfirmed, human check in #29). Xcode 27 has no Simulator.app. → [[architecture]], #29
 
+## USB iOS devices (BERTH-24)
+Physical iPhones/iPads on USB, listed in berth-bar "Devices", never leased. `BerthDaemon/Usbmux/`, not a `DeviceBackend`.
+- usbmuxd socket, 16-byte header (little-endian: length, version 1, type 8 = plist, tag) + XML plist. `ListDevices` → keep `ConnectionType: USB` only (Wi-Fi sync = noise), dedupe by UDID (`SerialNumber`) — duplicate seen during re-enumeration.
+- Trust = `ReadPairRecord` succeeds (Mac holds pair record) → `trusted`, else `not trusted`; read every poll, so tapping Trust shows within a tick. Trust revoked on phone still shows `trusted` (accepted).
+- Name/model/version = `Connect` to lockdownd port 62078 (network order), tunnel: 4-byte big-endian length + XML plist, unauthenticated `GetValue` `DeviceName`, `ProductType` (raw, e.g. `iPhone10,6`), `ProductVersion`. Works without trusted session (proven iOS 16.5.1). Once per attachment: cached per usbmuxd `DeviceID`, dropped on detach; failure cached as empty (`—`) until re-attach.
+- Blocking POSIX socket, 2 s send/recv timeout, off broker actor; fd closed only in `deinit`. Any usbmuxd failure → nil poll → broker keeps last list.
+
 ## Routing
 `DeviceRouter` (struct) wraps Android + iOS backends: model calls by `Config.platform(of:)`, serial-only calls by shape (`emulator-<port>` = Android, else iOS). `liveSerials` queries only platforms in pool; any nil → nil, so transient adb/simctl failure never stops slots. Daemon runs `adb start-server` only with Android entries. See [[broker]], [[architecture]].
