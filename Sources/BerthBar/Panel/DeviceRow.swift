@@ -14,8 +14,8 @@ struct DeviceRow: View {
             Text(device.model ?? "—").frame(width: PanelColumns.model, alignment: .leading)
             Text(device.state.word).frame(width: PanelColumns.detailSpan - PanelColumns.kill - PanelColumns.spacing, alignment: .leading)
             Color.clear.frame(width: PanelColumns.kill, height: 1).overlay { actionButton }
-            mirrorButton.frame(width: PanelColumns.mirror)
-            clipboardButton.frame(width: PanelColumns.clipboard)
+            Color.clear.frame(width: PanelColumns.mirror, height: 1).overlay { mirrorButton }
+            Color.clear.frame(width: PanelColumns.clipboard, height: 1).overlay { clipboardButton }
         }
         .lineLimit(1)
         .font(.callout)

@@ -1,6 +1,6 @@
 ---
 issue: BERTH-23
-phase: review
+phase: validated
 type: feature
 wiki: [architecture, glossary]
 note: Grilled by autopilot, nobody present. Every decision below tagged (autopilot assumption) waits for the user's confirmation.
@@ -119,6 +119,13 @@ Round 2: 4 minor findings, all fixed: `CommandRunner` moved to `Scrcpy/`, a `var
 
 Round 3: clean.
 
+### validation, 2026-11-27 (after feedback round 1)
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. No tools configured, no open build warnings. 2 verifier rounds, 1 autofix round. Verdict: clean. 0 withdrawn, 0 disputed.
+- The inline hunks of feedback round 1 were judged clean: the icon is `square.on.square` everywhere, and the `EmulatorRow` placeholders fix the windowed row.
+- fixed, 🟡 minor: `DeviceRow` built its Mirror and clipboard columns with a plain `.frame`, so it stayed aligned only because both buttons share the same rule. Both columns now use the `Color.clear` placeholder with the button as overlay, like the Kill column and `EmulatorRow`.
+- Code moved after the user's test: `Sources/BerthBar/Panel/DeviceRow.swift`.
+
 ## Verification
 
 - `swift build` and `swift test` pass on all four targets. The real device tests skip without `BERTH_CLIPBOARD_SERIAL`.
@@ -137,6 +144,11 @@ Round 3: clean.
 - `swift build` and `swift test` pass: 63 + 147 + 91 + 228 tests, 0 new warnings.
 - Render PNG `live-clipboard` checked: the `square.on.square` button shows on the same rows as before. On the windowed row, which has no Mirror button, the clipboard button now stays in its own column.
 - Not run on a device: the change is an icon and the row layout.
+
+### validation, after feedback round 1
+
+- `swift build` and `swift test` pass: 63 + 147 + 91 + 228 tests, 0 new warnings.
+- Render PNGs `live-clipboard` and `live-clipboard-dark` checked after the `DeviceRow` fix: device and emulator rows aligned, no button on `offline` or `unauthorized` rows.
 
 ## Feedback
 
