@@ -1,6 +1,6 @@
 ---
 issue: BERTH-22
-phase: review
+phase: validated
 type: feature
 wiki: [architecture, glossary]
 note: Ticket title covers the pair window only; scope grew in grill to Disconnect and USB to Wi-Fi buttons too.
@@ -118,6 +118,13 @@ Round 1: 11 minor findings.
 
 Round 2: 10 closed, 1 open.
 - open, 🟠 major: `WifiEligibility.swift:5` shows Disconnect on `adb-…._adb-tls-connect._tcp` rows, the rows a QR pair creates. `adb disconnect adb-foo._adb-tls-connect._tcp` answered `error: no such device 'adb-foo._adb-tls-connect._tcp:5555'`: adb appends `:5555` to a name without a port. If adb also does this for a connected mDNS device, the button only ever shows an error caption on those rows. The verifier asks to hide the button there. Not applied by autopilot: the acceptance criteria ask for the button on every Wi-Fi device row and accept a failure caption. Not proven either way: no paired phone was connected.
+
+### validation, 2026-11-27 (after the human's test)
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. No tools configured. Verdict: clean. Autofix changed nothing.
+- withdrawn: the 🟠 finding on `WifiEligibility.swift:5`. On the S22, `adb disconnect <mDNS name>` printed `disconnected …` with exit 0 on a live transport, three times. adb appends `:5555` only when the transport is already gone. The opt-in test ran two disconnects in a row with no caption, and the human retest passed.
+- Feedback round 1 change judged clean: `no such device` counts as success only on disconnect, and the serial always comes from adb's own list.
+- Wiki synced: `architecture.md` (Wi-Fi devices decision, `DeviceListing` in BerthCore, `PanelActions`) and `glossary.md` (`Wi-Fi device`).
 
 ## Verification
 

@@ -17,3 +17,4 @@ Product objects and notions users see: entities, states, roles, plans.
 | Term | Never | Code | Means |
 |---|---|---|---|
 <!-- | Inbox | Mailbox, Messages | `Inbox` | received mail, not archived, all accounts | -->
+| Wi-Fi device | wireless device, network device | `isWifi`, `WifiAdb` | phone adb reaches over the network, serial `ip:port` or mDNS name |
