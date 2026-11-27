@@ -7,6 +7,8 @@ struct StatusPanel: View {
     @Bindable var launchAtLogin: LaunchAtLogin
     @Bindable var autoUpdate: AutoUpdateSetting
     let launcher: EmulatorLauncher
+    let wifiActions: WifiDeviceActions
+    let pairWindow: PairWindowController
     let avdList: AVDList
     let mirror: MirrorController
 
@@ -57,7 +59,7 @@ struct StatusPanel: View {
             Text("none connected").foregroundStyle(.secondary)
         }
         ForEach(snapshot.devices) { device in
-            DeviceRow(device: device, launcher: launcher, mirror: mirror)
+            DeviceRow(device: device, launcher: launcher, wifiActions: wifiActions, mirror: mirror)
         }
         Text("Queue").font(.subheadline.bold())
         if snapshot.queue.isEmpty {
@@ -71,11 +73,14 @@ struct StatusPanel: View {
 
     @ViewBuilder
     private func menus(_ pool: [PoolEntry]) -> some View {
-        AVDMenus(items: AVDMenuItems(avds: avdList.avds, pool: pool), launcher: launcher)
+        PanelActions(items: AVDMenuItems(avds: avdList.avds, pool: pool), launcher: launcher, pairWindow: pairWindow)
         if let error = launcher.error {
             Text(error).font(.caption).foregroundStyle(.secondary)
         }
         if let caption = mirror.caption {
+            Text(caption).font(.caption).foregroundStyle(.secondary)
+        }
+        if let caption = wifiActions.caption {
             Text(caption).font(.caption).foregroundStyle(.secondary)
         }
     }

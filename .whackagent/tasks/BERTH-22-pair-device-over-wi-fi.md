@@ -1,6 +1,6 @@
 ---
 issue: BERTH-22
-phase:
+phase: review
 type: feature
 wiki: [architecture, glossary]
 note: Ticket title covers the pair window only; scope grew in grill to Disconnect and USB to Wi-Fi buttons too.
@@ -90,8 +90,43 @@ Glossary: + `Wi-Fi device` | Never: wireless device, network device | Code: `isW
 
 ## Implementation
 
+Autopilot run, 2026-11-27. One implementer, 5 bricks.
+
+1. Wi-Fi adb core (`Sources/BerthBar/Wifi/`): `WifiAdb` protocol, `SdkWifiAdb` (SDK adb through `Shell.run`, 15 s timeout per call), `WifiAdbError` (adb's own line), pure `AdbOutput` classifiers, `WifiAddress.parse`, `PhysicalDevice.isWifi`, `WifiEligibility`, `MdnsService` and its `adb mdns services` parser. `DeviceListing` moved from BerthDaemon to `BerthCore/Android/` so berth-bar parses `adb devices -l` with the same code.
+2. Row buttons: `WifiDeviceActions` (`disconnect`, `switchToWifi`: address, `tcpip 5555`, then `connect <ip>:5555` retried up to 10 times, 1 s apart; caption on failure). `DeviceRow` Kill column shows Kill, `wifi.slash` or `wifi`. Caption shown in `StatusPanel`.
+3. Pair flow: `PairQR` (random `berth-` name and password, `WIFI:T:ADB;S:…;P:…;;`), `PairFlow` state machine (QR wait of 120 polls 1 s apart, not found, pairing code, pairing, connecting, manual connect, connected). Connect after pair: 10 polls of `adb devices` for the phone, then the `_adb-tls-connect._tcp` service with the phone's IP, then manual entry. A failed QR pair falls back to the pairing code screen with the address prefilled.
+4. Window: `PairQRImage` (CoreImage, crisp modules, quiet zone), `PairCopy`, `PairView`, `PairWindowController` (one window, second open brings it to front, close cancels the flow), `AppKitPairWindow` (plain `NSWindow`). "Pair device…" button always shown in the actions row (`AVDMenus`).
+5. Proof: opt-in `RealPhoneWifiTests` (`BERTH_WIFI_PHONE=<usb serial>`), render PNGs, app start check.
+
+Build: `swift build` complete, 0 new warnings. Tests: `swift test` 63 + 147 + 82 + 156 passed.
+
 ## Review
 
+### validation (autopilot), 2026-11-27
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. No tools configured. No specialist reviewer (no Swift one in the session). 2 verifier rounds, 1 autofix round.
+
+Round 1: 11 minor findings.
+- fixed: the phone after a pair is matched by the guid adb prints (`[guid=…]`), not by "any new Wi-Fi device". A second phone connecting at the same time is no longer taken for this one.
+- fixed: the 2 min QR wait and the 10 s device waits use a clock deadline (`PairClock`), so a slow adb no longer stretches them.
+- fixed: Return submitted the pairing code twice (`.onSubmit` and the default button). Only the default button is left.
+- fixed: `start()` does nothing outside the QR state, so it can no longer cancel a running pair.
+- fixed: the error line lives in the `codeEntry` and `manualConnect` states instead of a separate property.
+- fixed: member order, a test in the wrong suite, a repeated type name.
+- fixed: window files moved to `Wifi/Pair/Window/`. `AVDMenus` renamed `PanelActions`, since it now holds the Pair button too.
+- half: disconnect of an mDNS-named row (below). An opt-in real phone test was added (`BERTH_WIFI_MDNS_SERIAL`).
+
+Round 2: 10 closed, 1 open.
+- open, 🟠 major: `WifiEligibility.swift:5` shows Disconnect on `adb-…._adb-tls-connect._tcp` rows, the rows a QR pair creates. `adb disconnect adb-foo._adb-tls-connect._tcp` answered `error: no such device 'adb-foo._adb-tls-connect._tcp:5555'`: adb appends `:5555` to a name without a port. If adb also does this for a connected mDNS device, the button only ever shows an error caption on those rows. The verifier asks to hide the button there. Not applied by autopilot: the acceptance criteria ask for the button on every Wi-Fi device row and accept a failure caption. Not proven either way: no paired phone was connected.
+
 ## Verification
+
+- `swift build` and `swift test` pass on all four targets. Real phone test skipped without `BERTH_WIFI_PHONE`.
+- Render PNGs read by the implementer: `pair-qr`, `pair-qr-dark`, `pair-not-found`, `pair-code-error`, `pair-connecting`, `pair-manual-error`, `pair-connected`, `pair-connected-dark`, `live-devices` (`wifi` on the USB `device` row, `wifi.slash` on both Wi-Fi rows, Kill on emulator rows only, nothing on USB `offline` and `unauthorized` rows), `live-devices-wifi-caption`, `live-empty` and `live-avd-menus` (Pair device button).
+- `PairQRImageTests` decodes the QR image back to the exact payload with CIDetector.
+- Real `adb mdns services` output captured on adb 37.0.3: tab separated, service type without a trailing dot. The parser accepts it.
+- berth-bar built from this branch starts with `BERTH_HOME=/tmp/bb22`, stays alive, and the frontmost app does not change (`desk-state` before and after identical). Stopped by pid.
+- Not run: the real phone test (`BERTH_WIFI_PHONE=R3CT312YV5B swift test --filter RealPhoneWifiTests`). The USB phone was unplugged when the test ran, so no `tcpip`, `connect` or `disconnect` reached it. The mDNS auto-reconnect after Disconnect is not observed yet.
+- Left to a human: QR scan, pairing code entry, both row buttons clicked in the panel, typing and resizing in the pair window.
 
 ## Feedback
