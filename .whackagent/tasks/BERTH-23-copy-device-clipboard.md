@@ -1,6 +1,6 @@
 ---
 issue: BERTH-23
-phase:
+phase: validated
 type: feature
 wiki: [architecture, glossary]
 note: Grilled by autopilot, nobody present. Every decision below tagged (autopilot assumption) waits for the user's confirmation.
@@ -25,7 +25,7 @@ Today a human who copies text on an emulator or a phone has no way to get it on 
   4. Start the server: `adb -s <serial> shell CLASSPATH=/data/local/tmp/berth-scrcpy-server.jar app_process / com.genymobile.scrcpy.Server <version> scid=<scid> log_level=warn tunnel_forward=true video=false audio=false control=true power_on=false cleanup=false clipboard_autosync=false`. Exact option names come from the scrcpy source of the installed version. `power_on=false` keeps a sleeping phone's screen off.
   5. Connect to `127.0.0.1:<port>`, read the dummy byte, send the control message `GET_CLIPBOARD` with copy key `none`, read the device message `CLIPBOARD` (type, length, UTF-8 text).
   6. Close the socket, stop the server process, `adb forward --remove tcp:<port>`, every time, success or failure.
-- The whole read has a 15 s timeout, like every other adb call of berth-bar.
+- The whole click is bounded by 15 s: 12 s for the read, then 3 s shared by the cleanup steps.
 - The pure parts are unit tested: the message encoder and decoder, the `scrcpy --version` parser, the server path lookup, the shell command line.
 - If the scrcpy protocol of the installed version cannot be driven this way, the implementer stops with BLOCKED and the evidence. No other mechanism is invented.
 
@@ -43,6 +43,7 @@ Today a human who copies text on an emulator or a phone has no way to get it on 
   - empty clipboard, or content that is not text: "<serial>: clipboard empty", and the Mac clipboard stays as it was;
   - scrcpy missing: the mirror text "scrcpy not found: brew install scrcpy";
   - any other failure: adb's or the server's own error line, or "<serial>: clipboard read timed out".
+- While a read runs, the caption shows "Reading clipboard of <serial>…". A second click on the same row waits for the running read and starts no second one. (Added at validation: an empty clipboard takes about 3 s to answer.)
 
 ### Architecture (autopilot assumption)
 
@@ -83,3 +84,50 @@ Today a human who copies text on an emulator or a phone has no way to get it on 
 - [ ] A sleeping phone's screen stays off during the read.
 - [ ] An open mirror of the same device keeps working during and after the read.
 - [ ] `swift build` and `swift test` pass. The rows with the new button and the caption have render test PNGs.
+
+## Implementation
+
+Autopilot run, 2026-11-27. One implementer, 2 bricks.
+
+1. Device clipboard read (`Sources/BerthBar/Clipboard/`): `DeviceClipboard` protocol and `ScrcpyDeviceClipboard`. It pushes the installed scrcpy server to `/data/local/tmp/berth-scrcpy-server.jar`, forwards `localabstract:scrcpy_<scid>`, starts the server with video, audio, power on, cleanup and clipboard autosync off, then sends `GET_CLIPBOARD` and reads the `CLIPBOARD` reply. Wire codec in `Scrcpy/Wire/`, server command line and process in `Scrcpy/Server/`, adb and scrcpy calls behind `CommandRunner`. `ScrcpyServerLocator` (`SCRCPY_SERVER_PATH`, else `../share/scrcpy/scrcpy-server` next to the binary) and `ScrcpyVersion` in `BerthCore/Mirror/Scrcpy/`.
+2. Row button: `ClipboardEligibility`, `ClipboardActions` (caption, one read per serial at a time), `MacPasteboard` and `SystemMacPasteboard` (`NSPasteboard.general`), `Panel/ClipboardButton` in a new column after Mirror. The panel is 680 pt wide instead of 650.
+
+Facts found while building:
+- scrcpy 5.0.1 also needs `send_device_meta=false`, or it sends a 64-byte device name after the dummy byte.
+- With autosync off, the server sends no reply when the clip has no text. berth waits 3 s after `GET_CLIPBOARD`, then counts silence as empty.
+- The server takes one control connection. adb accepts a connection before the server listens and then drops it, so berth retries a connection that closes.
+- A timeout during server start leaves `app_process` waiting on `accept()`. Cleanup then kills it on the device by its scid (`pkill -f 'com.genymobile.[s]crcpy.Server .*scid=<scid>'`), so a mirror's server is never touched.
+- `adb forward --remove` needs `-s <serial>` when several devices are connected.
+
+Build: `swift build` complete, 0 new warnings. Tests: `swift test` 63 + 147 + 91 + 228 passed.
+
+## Review
+
+### validation (autopilot), 2026-11-27
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. No tools configured. No specialist reviewer. 3 verifier rounds, 2 autofix rounds. Verdict: clean. 0 withdrawn, 0 disputed.
+
+Round 1: 13 minor findings, all fixed.
+- The caption waited for cleanup, so a hang could take about 30 s. Now the read gets 12 s and cleanup shares 3 s.
+- A hanging `scrcpy --version` now reports a timeout.
+- New "Reading clipboard of <serial>…" caption. A second click on the same serial reuses the running read.
+- The receive logic and the cleanup on each failure point are unit tested: `ScrcpyControlChannel`, `CommandRunner` and `ScrcpyServerLauncher` are injected.
+- `Clipboard/` split into `Pasteboard/`, `Scrcpy/Wire/` and `Scrcpy/Server/`. One `ClipboardButton` shared by both rows.
+- YAGNI and style fixes: `decode` returns the message only, `.init` forms, explicit types, one restating comment removed.
+
+Round 2: 4 minor findings, all fixed: `CommandRunner` moved to `Scrcpy/`, a `var` turned into a `let`, a test fake made thread safe with `Mutex`, temporary test folders removed.
+
+Round 3: clean.
+
+## Verification
+
+- `swift build` and `swift test` pass on all four targets. The real device tests skip without `BERTH_CLIPBOARD_SERIAL`.
+- Emulator `emulator-5554` (Android 17), leased with berth and released. A 34-character, 63-byte text with accents, emoji, CJK and line breaks came back identical in 0.2 to 0.4 s, after every autofix round. An empty clipboard gave nil. The click path through `ClipboardActions` into a fake pasteboard showed "Copied clipboard of emulator-5554" with one write.
+- USB S22 `R3CT312YV5B`, read only: 72 characters read in 0.5 to 0.9 s. Its screen state stayed `Awake` before and after.
+- Wi-Fi Pixel 9 Pro, read only: an empty clipboard gave nil after about 3.7 s, and the caption "<serial>: clipboard empty" with no pasteboard write.
+- Reads with timeouts of 20 to 220 ms hit every phase on the three devices. Each ended with the timeout caption or a normal read. `adb forward --list` and the device's process list showed no forward and no server left.
+- Render PNGs checked: `live-clipboard`, `live-clipboard-dark`, `live-clipboard-caption`, `live-clipboard-caption-error`, `live-clipboard-caption-reading`. The button shows on Android `free`, `leased` and windowed rows and on devices in state `device`. It does not show on iOS, `booting`, `offline` or `unauthorized` rows.
+- berth-bar built from this branch starts with `BERTH_HOME=/tmp/bb23` and stays alive, with an empty log. The frontmost app did not change. It was stopped by pid.
+- Not run on a device: a sleeping phone during a read (all devices were awake; the server runs with `power_on=false` and berth sends no input), and a read while a mirror of the same device is open (a hook blocks scrcpy in the agent's shell).
+- Left to a human: one click on an emulator row and one on a phone row, then a paste on the Mac.
+- Seen once, not reproduced: right after a series of timed out reads, one read got an empty reply while the emulator's clipboard held text.

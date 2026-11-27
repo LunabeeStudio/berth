@@ -18,7 +18,7 @@ final class BerthBarDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model: StatusModel = .init()
         mirror.observe(model)
-        controller = .init(model: model, launchAtLogin: .init(), autoUpdate: .init(), launcher: .init(), wifiActions: .init(), pairWindow: .init(), avdList: .init(), mirror: mirror)
+        controller = .init(model: model, launchAtLogin: .init(), autoUpdate: .init(), launcher: .init(), wifiActions: .init(), clipboardActions: .init(), pairWindow: .init(), avdList: .init(), mirror: mirror)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

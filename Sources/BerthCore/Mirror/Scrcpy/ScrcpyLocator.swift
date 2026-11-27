@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ScrcpyLocator {
+public struct ScrcpyLocator: Sendable {
     private let environment: [String: String]
     private let fallbackDirectories: [String]
 

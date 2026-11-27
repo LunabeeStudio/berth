@@ -18,7 +18,7 @@ final class StatusItemController: NSObject {
     private var shownSymbol: String?
     private var shownTitle: String?
 
-    init(model: StatusModel, launchAtLogin: LaunchAtLogin, autoUpdate: AutoUpdateSetting, launcher: EmulatorLauncher, wifiActions: WifiDeviceActions, pairWindow: PairWindowController, avdList: AVDList, mirror: MirrorController) {
+    init(model: StatusModel, launchAtLogin: LaunchAtLogin, autoUpdate: AutoUpdateSetting, launcher: EmulatorLauncher, wifiActions: WifiDeviceActions, clipboardActions: ClipboardActions, pairWindow: PairWindowController, avdList: AVDList, mirror: MirrorController) {
         self.model = model
         self.launchAtLogin = launchAtLogin
         self.autoUpdate = autoUpdate
@@ -28,7 +28,7 @@ final class StatusItemController: NSObject {
         self.avdList = avdList
         self.mirror = mirror
         super.init()
-        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, autoUpdate: autoUpdate, launcher: launcher, wifiActions: wifiActions, pairWindow: pairWindow, avdList: avdList, mirror: mirror))
+        let content: NSHostingController<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: launchAtLogin, autoUpdate: autoUpdate, launcher: launcher, wifiActions: wifiActions, clipboardActions: clipboardActions, pairWindow: pairWindow, avdList: avdList, mirror: mirror))
         content.sizingOptions = .preferredContentSize
         popover.contentViewController = content
         popover.behavior = .transient

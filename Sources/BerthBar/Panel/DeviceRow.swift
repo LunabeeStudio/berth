@@ -5,6 +5,7 @@ struct DeviceRow: View {
     let device: PhysicalDevice
     let launcher: EmulatorLauncher
     let wifiActions: WifiDeviceActions
+    let clipboardActions: ClipboardActions
     let mirror: MirrorController
 
     var body: some View {
@@ -14,6 +15,7 @@ struct DeviceRow: View {
             Text(device.state.word).frame(width: PanelColumns.detailSpan - PanelColumns.kill - PanelColumns.spacing, alignment: .leading)
             Color.clear.frame(width: PanelColumns.kill, height: 1).overlay { actionButton }
             mirrorButton.frame(width: PanelColumns.mirror)
+            clipboardButton.frame(width: PanelColumns.clipboard)
         }
         .lineLimit(1)
         .font(.callout)
@@ -42,6 +44,13 @@ struct DeviceRow: View {
             Button { mirror.open(device) } label: { Image(systemName: "play.display") }
                 .buttonStyle(.borderless)
                 .help("Mirror")
+        }
+    }
+
+    @ViewBuilder
+    private var clipboardButton: some View {
+        if ClipboardEligibility.showsCopyButton(device) {
+            ClipboardButton(serial: device.serial, actions: clipboardActions)
         }
     }
 }

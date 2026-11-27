@@ -58,6 +58,21 @@ struct StatusPanelRenderTests {
         return .live(.mock(slots: [free, leased, windowed, simulator, resetting], pool: pool, generatedAt: now))
     }
 
+    private static func clipboardRows() -> StatusState {
+        let lease: Lease = .mock(owner: .mock(pid: 4242, name: "claude"), label: "demo", grantedAt: now.addingTimeInterval(-9), expiresAt: now.addingTimeInterval(59 * 60))
+        let free: Slot = .mock(serial: "emulator-5554", model: "Pixel_8", state: .free)
+        let leased: Slot = .mock(serial: "emulator-5556", model: "Pixel_9", state: .leased, lease: lease)
+        let windowed: Slot = .mock(serial: "emulator-5558", model: "Pixel_9", state: .leased, lease: .mock(owner: .mock(pid: 99, name: "berth-bar"), label: "you", grantedAt: now.addingTimeInterval(-120), expiresAt: .distantFuture, manual: true), windowed: true)
+        let simulator: Slot = .mock(serial: "UDID-1", model: "iPhone 17", state: .free)
+        let booting: Slot = .mock(serial: "emulator-5560", model: "Pixel_8", state: .booting)
+        let pool: [PoolEntry] = [.init(name: "Pixel_8", maxInstances: 2), .init(name: "Pixel_9", maxInstances: 2), .init(name: "iPhone 17", platform: .ios, maxInstances: 1)]
+        let phone: PhysicalDevice = .mock()
+        let wifi: PhysicalDevice = .mock(serial: "192.168.100.200:5555", model: "Pixel_Fold")
+        let offline: PhysicalDevice = .mock(serial: "ZX1G22KLMN", model: "Pixel_3a", state: .offline)
+        let locked: PhysicalDevice = .mock(serial: "0A1B2C3D4E5F", model: nil, state: .unauthorized)
+        return .live(.mock(slots: [free, leased, windowed, simulator, booting], pool: pool, generatedAt: now, devices: [phone, wifi, offline, locked]))
+    }
+
     private static func devices() -> StatusState {
         let phone: PhysicalDevice = .mock()
         let locked: PhysicalDevice = .mock(serial: "adb-9A2B3C4D5E._adb-tls-connect._tcp", model: nil, state: .unauthorized)
@@ -75,6 +90,7 @@ struct StatusPanelRenderTests {
         appearance: NSAppearance.Name = .aqua,
         mirror: MirrorController = .init(),
         wifiActions: WifiDeviceActions = .init(),
+        clipboardActions: ClipboardActions = .init(clipboard: FakeDeviceClipboard(.success(nil)), pasteboard: FakeMacPasteboard()),
         pairWindow: PairWindowController = .init(),
         avdList: AVDList = .init(load: { [] }),
         autoUpdate: AutoUpdateSetting? = nil
@@ -86,7 +102,7 @@ struct StatusPanelRenderTests {
             environment: [:]
         )
         let setting: AutoUpdateSetting = try autoUpdate ?? Self.setting(autoUpdate: true)
-        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, autoUpdate: setting, launcher: .init(), wifiActions: wifiActions, pairWindow: pairWindow, avdList: avdList, mirror: mirror))
+        let host: NSHostingView<StatusPanel> = .init(rootView: StatusPanel(model: model, launchAtLogin: login, autoUpdate: setting, launcher: .init(), wifiActions: wifiActions, clipboardActions: clipboardActions, pairWindow: pairWindow, avdList: avdList, mirror: mirror))
         host.appearance = NSAppearance(named: appearance)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         host.layoutSubtreeIfNeeded()
@@ -105,7 +121,7 @@ struct StatusPanelRenderTests {
 
     private static func expectPanelSized(_ image: NSBitmapImageRep) {
         #expect(image.pixelsHigh > 0)
-        #expect(image.size.width == 650)
+        #expect(image.size.width == 680)
     }
 
     private static func expectOpaque(_ image: NSBitmapImageRep) {
@@ -213,6 +229,40 @@ struct StatusPanelRenderTests {
 
         Self.expectPanelSized(try Self.render(Self.devices(), named: "live-devices-wifi-caption", wifiActions: wifiActions))
         #expect(wifiActions.caption == "error: no such device '192.168.100.200:5555'")
+    }
+
+    @Test(arguments: [(NSAppearance.Name.aqua, "live-clipboard"), (.darkAqua, "live-clipboard-dark")])
+    func `clipboard buttons render on android rows and on devices in state device`(appearance: NSAppearance.Name, name: String) throws {
+        Self.expectPanelSized(try Self.render(Self.clipboardRows(), named: name, appearance: appearance))
+    }
+
+    @Test
+    func `live with a clipboard caption renders the panel`() async throws {
+        let clipboardActions: ClipboardActions = .init(clipboard: FakeDeviceClipboard(.success("hello")), pasteboard: FakeMacPasteboard())
+        await clipboardActions.copy(serial: "emulator-5554").value
+
+        Self.expectPanelSized(try Self.render(Self.clipboardRows(), named: "live-clipboard-caption", clipboardActions: clipboardActions))
+        #expect(clipboardActions.caption == "Copied clipboard of emulator-5554")
+    }
+
+    @Test
+    func `live with a clipboard read in progress renders the panel`() throws {
+        let clipboard: GatedDeviceClipboard = .init(text: nil)
+        let clipboardActions: ClipboardActions = .init(clipboard: clipboard, pasteboard: FakeMacPasteboard())
+        clipboardActions.copy(serial: "emulator-5554")
+        defer { clipboard.open() }
+
+        Self.expectPanelSized(try Self.render(Self.clipboardRows(), named: "live-clipboard-caption-reading", clipboardActions: clipboardActions))
+        #expect(clipboardActions.caption == "Reading clipboard of emulator-5554…")
+    }
+
+    @Test
+    func `live with a clipboard error caption renders the panel`() async throws {
+        let clipboardActions: ClipboardActions = .init(clipboard: FakeDeviceClipboard(.failure(.scrcpyNotFound)), pasteboard: FakeMacPasteboard())
+        await clipboardActions.copy(serial: "emulator-5554").value
+
+        Self.expectPanelSized(try Self.render(Self.clipboardRows(), named: "live-clipboard-caption-error", clipboardActions: clipboardActions))
+        #expect(clipboardActions.caption == "scrcpy not found: brew install scrcpy")
     }
 
     @Test
