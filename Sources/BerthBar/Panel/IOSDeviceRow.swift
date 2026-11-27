@@ -11,6 +11,7 @@ struct IOSDeviceRow: View {
             Text(detail).frame(width: PanelColumns.detailSpan - PanelColumns.kill - PanelColumns.spacing, alignment: .leading)
             Color.clear.frame(width: PanelColumns.kill, height: 1)
             Color.clear.frame(width: PanelColumns.mirror, height: 1)
+            Color.clear.frame(width: PanelColumns.clipboard, height: 1)
         }
         .lineLimit(1)
         .font(.callout)

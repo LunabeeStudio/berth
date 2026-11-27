@@ -103,6 +103,8 @@ Round 1 had 8 findings. The implementer confirmed all of them and autofix fixed 
 
 Round 2: clean. Withdrawn: 0. Disputed: 0.
 
+After the review, the branch was rebased onto `main`, which now holds BERTH-23. The wiki conflict was resolved by hand. `IOSDeviceRow` gained the empty clipboard column that BERTH-23 added to the other rows, so the columns still line up. Build and full tests are green (63, 192, 93 and 230 tests), and the render was checked again at 680 pt.
+
 ## Verification
 
 - ✅ The real `UsbmuxdIOSDeviceSource` against `/var/run/usbmuxd`, with an iPhone X plugged in over USB, returned (again after autofix) "Lunabee iPhone X Tom", `iPhone10,6`, iOS 16.5.1, `trusted: true`.
