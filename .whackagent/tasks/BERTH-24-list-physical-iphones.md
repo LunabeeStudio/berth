@@ -1,6 +1,6 @@
 ---
 issue: BERTH-24
-phase:
+phase: validated
 type: feature
 wiki: [architecture, ios-backend, glossary]
 note: Open PR #84 (BERTH-23) also edits StatusPanel.swift, PanelColumns.swift and StatusPanelRenderTests.swift. Merge conflicts there are likely.
@@ -69,8 +69,52 @@ Grilled unattended by `/wa-autopilot` on 2026-11-27. Decisions tagged `(autopilo
 
 ## Implementation
 
+- `IOSDevice` (UDID, optional name, product type and OS version, `trusted`) in `Sources/BerthCore/IOS/IOSDevice.swift`.
+- `Sources/BerthDaemon/Usbmux/`:
+  - `Wire/` (`Usbmuxd/`, `Lockdown/`, shared `PropertyList`): pure encode and decode. The usbmuxd header plus XML plist, `ListDevices` (USB only), `ReadPairRecord`, `Connect` (port in network byte order), and the lockdown `GetValue` exchange.
+  - `Transport/`: blocking POSIX Unix socket with a 2 s send and receive timeout, run off the broker actor.
+  - `UsbmuxdService` and `UsbmuxdIOSDeviceSource` (public, behind the `IOSDeviceSource` protocol).
+  - Lockdown values are cached per usbmuxd `DeviceID`. One lockdown tunnel per attachment gives three `GetValue` calls. A failed attachment caches empty values until re-attach. The pair record is read on every poll.
+- `StateSnapshot.iosDevices`, decoded with `decodeIfPresent`.
+- `Broker` takes an optional `IOSDeviceSource`, polls it on every `reap()` and at `restore()`, keeps the last list on a failed poll, and calls `changed()` when the list differs. `Daemon` passes `UsbmuxdIOSDeviceSource()`. iOS devices never reach slots, grants or `DeviceRouter`.
+- Panel: new `IOSDeviceRow` (name with UDID in the hover help, product type, `iOS <version> · trusted|not trusted`, `—` when missing, no button). The rows come after the Android rows. "none connected" uses `StateSnapshot.hasNoDevices` (`StateSnapshot+Devices.swift`).
+- Tests:
+  - `Tests/BerthDaemonTests/Usbmux/`: wire, service and source cache tests against fixtures and a fake connection.
+  - `BrokerIOSDevicesTests` (9 cases).
+  - `ModelDecodingTests` for an old snapshot and a round trip.
+  - Panel render of Android and iOS rows, light and dark, plus `hasNoDevices`.
+- Build: `swift build` green, full `swift test` green (63, 192, 84 and 166 tests), 0 new warnings.
+
 ## Review
 
+### validation (autopilot): 2026-11-27
+
+Lenses: style ✓ · elegance ✓ · structure ✓ · correctness ✓. Verdict after 2 rounds: clean.
+
+Round 1 had 8 findings. The implementer confirmed all of them and autofix fixed them:
+- 🟠 [correctness] `UnixSocketConnection` closed the fd in its catch and again in `deinit` when the connect failed. A second close can hit an fd reused by another thread. Fixed: `deinit` is the only owner, and a missing-socket test was added.
+- 🟠 [correctness] `Dictionary(uniqueKeysWithValues:)` over UDIDs from usbmuxd trapped on a duplicate entry, which crashed the daemon. Fixed: the first entry per UDID is kept, and a test was added.
+- 🟡 [correctness] The socket timeout dropped its sub-second part, so a timeout under 1 s meant no timeout. Fixed: `tv_usec` is set.
+- 🟡 [structure] `UsbmuxdIOSDeviceSource` was public. Fixed: it is internal, and only `IOSDeviceSource` stays public.
+- 🟡 [structure] `Wire/` held 8 files. Fixed: split into `Wire/Usbmuxd/` and `Wire/Lockdown/`, with the tests mirrored.
+- 🟡 [style] In `LockdownKey`, the static method came after the instance method. Fixed.
+- 🟡 [elegance] `IOSDevice`, `LockdownValues` and `UsbmuxDevice` used `var`. Fixed: they use `let`.
+- 🟡 [style] Trailing commas in `UsbmuxdServiceTests`. Fixed.
+
+Round 2: clean. Withdrawn: 0. Disputed: 0.
+
 ## Verification
+
+- ✅ The real `UsbmuxdIOSDeviceSource` against `/var/run/usbmuxd`, with an iPhone X plugged in over USB, returned (again after autofix) "Lunabee iPhone X Tom", `iPhone10,6`, iOS 16.5.1, `trusted: true`.
+- ✅ The agent ran its own daemon (`BERTH_HOME=/tmp/b24`, empty pool). `berth status --json` showed the iPhone under `iosDevices`, Android devices under `devices`, and `slots: []`. The `berth status` human output had no iOS line.
+- ✅ Render `live-ios-devices.png` (light and dark): the Android row comes first, with its buttons. Then a trusted iOS row and a row with `—` values reading "not trusted", with no button. Columns line up and nothing overflows.
+- Unit tests prove the following:
+  - Wi-Fi sync (Network) devices are dropped.
+  - Lockdown values are read once per attachment.
+  - A failed poll keeps the last list.
+  - Unplugging removes the row.
+  - An Android failure and an iOS failure do not affect each other.
+  - A claim never grants an iOS device.
+- Not proven by the agent: the popover on screen with a plugged iPhone, and the row leaving the live popover on unplug. Both need a human (desktop proof rules).
 
 ## Feedback

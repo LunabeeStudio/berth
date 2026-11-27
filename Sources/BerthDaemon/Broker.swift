@@ -38,6 +38,7 @@ public actor Broker {
     private let ownerAlive: @Sendable (Owner) -> Bool
     private let adbServerPid: @Sendable () async -> Int32?
     private let listingRetryDelay: Duration
+    private let iosSource: (any IOSDeviceSource)?
 
     private var slots: [String: Slot] = [:]
     private var waiters: [Waiter] = []
@@ -45,6 +46,7 @@ public actor Broker {
     private var unacknowledged: [UUID: Set<String>] = [:]
     private var externalSerials: Set<String> = []
     private var devices: [PhysicalDevice] = []
+    private var iosDevices: [IOSDevice] = []
     private var avdNames: [String: String?] = [:]
     private var missedTicks: [String: Int] = [:]
     private var bootFailures: [String: Int] = [:]
@@ -66,7 +68,8 @@ public actor Broker {
         now: @escaping @Sendable () -> Date = { Date() },
         ownerAlive: @escaping @Sendable (Owner) -> Bool = ProcessInspector.isAlive,
         adbServerPid: @escaping @Sendable () async -> Int32? = { nil },
-        listingRetryDelay: Duration = .milliseconds(500)
+        listingRetryDelay: Duration = .milliseconds(500),
+        iosDevices iosSource: (any IOSDeviceSource)? = nil
     ) {
         self.config = config
         self.backend = backend
@@ -77,6 +80,7 @@ public actor Broker {
         self.ownerAlive = ownerAlive
         self.adbServerPid = adbServerPid
         self.listingRetryDelay = listingRetryDelay
+        self.iosSource = iosSource
     }
 
     // region Requests
@@ -255,7 +259,8 @@ public actor Broker {
             pool: config.pool,
             generatedAt: generatedAt,
             adbRestartedAt: AdbInstability.isUnstable(restartedAt: adbRestartedAt, now: generatedAt) ? adbRestartedAt : nil,
-            devices: devices
+            devices: devices,
+            iosDevices: iosDevices
         )
     }
 
@@ -295,7 +300,15 @@ public actor Broker {
             }
         }
         devices = await publishedDevices(listing)
+        _ = await pollIOSDevices()
         changed()
+    }
+
+    /// A failed poll keeps the last list. Returns whether the list changed.
+    private func pollIOSDevices() async -> Bool {
+        guard let polled = await iosSource?.devices(), polled != iosDevices else { return false }
+        iosDevices = polled
+        return true
     }
 
     private func publishedDevices(_ listing: DeviceListing?) async -> [PhysicalDevice] {
@@ -343,6 +356,9 @@ public actor Broker {
         let published: [PhysicalDevice] = await publishedDevices(listing)
         if published != devices {
             devices = published
+            changed()
+        }
+        if await pollIOSDevices() {
             changed()
         }
         if let live {

@@ -18,3 +18,4 @@ Product objects and notions users see: entities, states, roles, plans.
 |---|---|---|---|
 <!-- | Inbox | Mailbox, Messages | `Inbox` | received mail, not archived, all accounts | -->
 | Wi-Fi device | wireless device, network device | `isWifi`, `WifiAdb` | phone adb reaches over the network, serial `ip:port` or mDNS name |
+| iOS device | Apple device, iDevice | `IOSDevice` | iPhone or iPad berth sees through usbmuxd over USB |

@@ -84,6 +84,12 @@ struct StatusPanelRenderTests {
         return .live(.mock(generatedAt: now, devices: [phone, locked, wifi, emulator, booting, usbOffline, usbLocked]))
     }
 
+    private static func iosDevices() -> StatusState {
+        let trusted: IOSDevice = .mock()
+        let unknown: IOSDevice = .mock(udid: "57b8a6479f5932013538f1b3e20612501df259b8", name: nil, productType: nil, osVersion: nil, trusted: false)
+        return .live(.mock(generatedAt: now, devices: [.mock()], iosDevices: [trusted, unknown]))
+    }
+
     private static func render(
         _ state: StatusState,
         named name: String,
@@ -173,6 +179,18 @@ struct StatusPanelRenderTests {
     @Test(arguments: [(NSAppearance.Name.aqua, "live-mirror"), (.darkAqua, "live-mirror-dark")])
     func `mirror button rows render in every appearance`(appearance: NSAppearance.Name, name: String) throws {
         Self.expectPanelSized(try Self.render(Self.mirrorable(), named: name, appearance: appearance))
+    }
+
+    @Test(arguments: [(NSAppearance.Name.aqua, "live-ios-devices"), (.darkAqua, "live-ios-devices-dark")])
+    func `iOS device rows render in every appearance`(appearance: NSAppearance.Name, name: String) throws {
+        Self.expectPanelSized(try Self.render(Self.iosDevices(), named: name, appearance: appearance))
+    }
+
+    @Test
+    func `none connected shows only when no Android and no iOS device is listed`() {
+        #expect(StateSnapshot.mock().hasNoDevices)
+        #expect(!StateSnapshot.mock(devices: [.mock()]).hasNoDevices)
+        #expect(!StateSnapshot.mock(iosDevices: [.mock()]).hasNoDevices)
     }
 
     @Test(arguments: [(NSAppearance.Name.aqua, "live-devices"), (.darkAqua, "live-devices-dark")])
